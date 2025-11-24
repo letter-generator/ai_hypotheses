@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HypGen</title>
+    <link rel="stylesheet" href="fonts.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,10 +12,10 @@
 <aside class="sidebar">
     <div>
         <div class="sidebar-header">
-            <img src="logo.svg" alt="HypGen Logo" class="logo-image">
+            <img src="assets/images/logo.svg" alt="HypGen Logo" class="logo-image">
         </div>
 
-        <nav class="sidebar-nav">
+        <nav class="sidebar-nav custom-scrollbar">
             <a href="/new-chat" class="nav-button">Новый чат</a>
 
             <a href="/history" class="nav-button">История</a>
@@ -29,6 +30,30 @@
 
     <a href="/info" class="info-button">Информация</a>
 </aside>
+
+<main class="main-content">
+
+    <div class="chat-center-wrapper">
+        <h2 class="chat-title">Новый чат</h2>
+
+        <div class="chat-input-area">
+            <textarea class="chat-textarea custom-scrollbar" placeholder="Мне интересно..."></textarea>
+
+            <button class="attach-button icon-button">
+                <img src="assets/images/icon-attach.svg" alt="Прикрепить файл">
+            </button>
+
+            <button class="send-button icon-button">
+                <img src="assets/images/icon-send.svg" alt="Отправить">
+            </button>
+
+        </div>
+    </div>
+
+    <div class="chat-history-container">
+    </div>
+
+</main>
 
 </body>
 </html>

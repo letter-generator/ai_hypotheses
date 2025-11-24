@@ -2,6 +2,8 @@ html, body {
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    font-family: 'Fira Sans Condensed', Arial, sans-serif;
+    font-weight: 400;
 }
 /* Стили для боковой панели */
 .sidebar {
@@ -12,8 +14,8 @@ html, body {
     left: 0;
 
     /* Стили для макета */
-    background-color: #c6a2d1;
-    color: #4b2e67;
+    background-color: #C192D2;
+    color: #000;
     padding: 20px 0;
     box-sizing: border-box;
     display: flex;
@@ -47,7 +49,7 @@ html, body {
     width: 100%;
     padding: 15px 20px;
     text-decoration: none;
-    color: inherit;
+    color: #000;
     background-color: #EBC2F8;
     border: none;
     text-align: left;
@@ -69,11 +71,12 @@ html, body {
 }
 
 .history-item {
+    transform: translateX(20px);
     display: block;
-    padding: 8px 20px 8px 40px;
+    padding: 8px 20px 8px 10px;
     text-decoration: none;
     color: inherit;
-    background-color: #EBC2F8;
+    background-color: #C192D2;
     font-size: 14px;
     cursor: pointer;
     transition: background-color 0.2s;
@@ -82,7 +85,7 @@ html, body {
 }
 
 .history-item:hover {
-    background-color: #AE58CA;
+    background-color: #DDB2EB;
 }
 
 .history-item.active {
@@ -112,4 +115,129 @@ html, body {
 
 .info-button:hover {
     background-color: #AE58CA;
+}
+
+/* Центральная часть */
+
+.main-content {
+/* Стили позиционирования относительно бокового меню */
+    margin-left: 300px;
+    width: calc(100% - 300px);
+    min-height: 100vh;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: #f0f0f0;
+
+    /* Центрирование контента по центру экрана */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Контейнер для центрирования поля ввода и заголовка */
+.chat-center-wrapper {
+    width: 700px;
+    max-width: 80%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Заголовок "Новый чат" */
+.chat-title {
+    font-family: 'Fira Sans Condensed', sans-serif;
+    font-size: 32px;
+    font-weight: 400;
+    color: #000;
+    margin-bottom: 20px;
+    text-align: center;
+    width: 100%;
+}
+
+/* Основной блок ввода */
+.chat-input-area {
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    padding: 10px 15px;
+    background-color: #e3c9ee;
+    border-radius: 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Поле для ввода текста */
+.chat-textarea {
+    flex-grow: 1;
+    border: none;
+    resize: none;
+    padding: 5px 10px;
+    font-size: 16px;
+    line-height: 1.5;
+    background: transparent;
+    outline: none;
+    font-family: inherit;
+    height: 75px;
+    color: #4b2e67;
+}
+
+/* Стили для всех кнопок-иконок */
+.icon-button {
+    width: 40px;
+    height: 40px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    background: transparent;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Кнопка "Прикрепить"*/
+.attach-button {
+    margin-right: 10px;
+    border-radius: 100px;
+}
+
+.attach-button:hover {
+    background-color: #9245a8;
+}
+
+/* Кнопка отправки */
+.send-button {
+    background-color: #AE58CA;
+    border-radius: 100px;
+    width: 40px;
+    height: 40px;
+    margin-left: 5px;
+}
+
+.send-button:hover {
+    background-color: #9245a8;
+}
+
+/* SVG-иконки внутри кнопок */
+.icon-button img {
+    width: 24px;
+    height: 24px;
+}
+
+/* Контейнер истории (пока пуст) */
+.chat-history-container {
+    display: none; /* Скрыт на стартовом экране */
+}
+
+/* Кастомный скроллбар */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgb(217 217 217 / 10%);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #AA63C2;
 }
