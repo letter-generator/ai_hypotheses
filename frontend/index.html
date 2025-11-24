@@ -54,23 +54,28 @@
         <h2 class="chat-title">Новый чат</h2>
 
         <div class="chat-input-area">
-            <textarea class="chat-textarea custom-scrollbar" placeholder="Мне интересно..."></textarea>
 
-            <button class="attach-button icon-button">
-                <img src="assets/images/icon-attach.svg" alt="Прикрепить файл">
-            </button>
+            <div class="file-chip-container">
+            </div>
 
-            <button class="send-button icon-button">
-                <img src="assets/images/icon-send.svg" alt="Отправить">
-            </button>
+            <div class="chat-input-area-content">
+
+                <textarea class="chat-textarea custom-scrollbar" placeholder="Мне интересно..."></textarea>
+
+                <button class="attach-button icon-button">
+                    <img src="assets/images/icon-attach.svg" alt="Прикрепить файл">
+                </button>
+
+                <button class="send-button icon-button">
+                    <img src="assets/images/icon-send.svg" alt="Отправить">
+                </button>
+            </div>
         </div>
 
-        <input type="file" id="file-input" style="display: none;">
+        <input type="file" id="file-input" style="display: none;" multiple>
     </div>
 
 </main>
-
 <script src="script.js"></script>
-
 </body>
 </html>

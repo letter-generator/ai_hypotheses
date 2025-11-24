@@ -65,6 +65,11 @@ html, body {
     background-color: #AE58CA;
 }
 
+.history-static-button:hover {
+    background-color: #EBC2F8;
+    cursor: default;
+}
+
 /* "История" */
 .history-list {
     padding: 10px 20px;
@@ -159,13 +164,25 @@ html, body {
 
 /* Основной блок ввода */
 .chat-input-area {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    max-width: 900px;
     width: 100%;
+    margin-top: auto;
+    background-color: #F5D8FF;
+    border-radius: 30px;
+    padding: 10px 10px 10px 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+}
+
+/* Flex-контейнер для кнопок и textarea */
+.chat-input-area-content {
     display: flex;
     align-items: flex-end;
-    padding: 10px 15px;
-    background-color: #F5D8FF;
-    border-radius: 20px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    width: 100%;
 }
 
 /* Поле для ввода текста */
@@ -302,4 +319,56 @@ body.chat-active .chat-title {
 body.chat-active .chat-history-container {
     display: flex; /* Показываем историю */
     flex-direction: column;
+}
+
+/* Визуализация прикрепленного файла */
+
+.file-chip-container {
+/* Контейнер должен быть виден, только когда чип присутствует */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 5px 0 10px 10px; /* Отступ от textarea и левого края */
+    border-bottom: 1px solid #dcdcdc; /* Визуальный разделитель от textarea */
+    margin-bottom: 5px; /* Отступ до textarea */
+    /* Скрыт по умолчанию */
+    display: none;
+}
+
+.file-chip {
+/* Сам чип */
+    display: inline-flex;
+    align-items: center;
+    background-color: #AE58C3; /* Цвет кнопки отправки */
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 14px;
+    margin-right: 10px;
+}
+
+.file-chip-text {
+/* Текст имени файла */
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Добавляет "..." в конце длинного имени */
+    margin-right: 8px;
+}
+
+.file-chip-delete {
+/* Кнопка "Удалить"*/
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    margin: 0;
+    transition: color 0.2s;
+}
+
+.file-chip-delete:hover {
+    color: #f1f1f1;
 }

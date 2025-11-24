@@ -1,99 +1,148 @@
-// Получаем элемент поля ввода
+// Основные элементы
+const body = document.body;
 const textarea = document.querySelector('.chat-textarea');
+const chatHistoryContainer = document.querySelector('.chat-history-container');
 const MAX_HEIGHT = 200;
 
-// Функция, которая корректирует высоту
-function autoResizeTextarea() {
-    textarea.style.height = 'auto'; // Сначала сбрасываем высоту, чтобы узнать фактическую высоту содержимого
-    const newHeight = Math.min(textarea.scrollHeight, MAX_HEIGHT); // Вычисляем новую высоту: либо высота содержимого, либо MAX_HEIGHT
-    textarea.style.height = newHeight + 'px'; // Применяем новую высоту
-}
-
-textarea.addEventListener('input', autoResizeTextarea); // Привязываем функцию к событию ввода
-
-autoResizeTextarea(); // Вызываем один раз при загрузке, на случай если там уже есть текст
-
-// Получаем контейнер истории чата
-const chatHistoryContainer = document.querySelector('.chat-history-container');
-
-// Функция, которая прокручивает историю вниз
-function scrollToBottom() {
-    chatHistoryContainer.scrollTop = chatHistoryContainer.scrollHeight; // Используем свойство scrollHeight для прокрутки к самому низу
-}
-
-scrollToBottom(); // 6. Вызываем прокрутку при запуске, чтобы показать последние сообщения
-
-// Получаем необходимые элементы DOM
-const body = document.body;
+// Кнопки и навигация
 const sendButton = document.querySelector('.send-button');
+const attachButton = document.querySelector('.attach-button');
 const newChatButton = document.querySelector('.nav-button[href="/new-chat"]');
 const historyItems = document.querySelectorAll('.history-item');
 
-// Функция переключения в режим "Активный чат"
-function activateChatMode() {
-    body.classList.add('chat-active');// Добавляем класс, который меняет макет
-    textarea.value = ''; // Очищаем поле ввода
-    autoResizeTextarea(); // Сбрасываем высоту поля ввода
-    scrollToBottom(); // Прокручиваем к последнему сообщению (если оно есть)
+// Логика прикрепления файлов
+const fileInput = document.getElementById('file-input');
+const fileChipContainer = document.querySelector('.file-chip-container');
+// Массив для хранения выбранных файлов
+let attachedFiles = [];
+
+// Автоматический ресайз)
+function autoResizeTextarea() {
+    textarea.style.height = 'auto';
+    const newHeight = Math.min(textarea.scrollHeight, MAX_HEIGHT);
+    textarea.style.height = newHeight + 'px';
 }
 
-// Функция переключения в режим "Стартовый экран" (Новый чат)
-function activateStartMode() {
-    body.classList.remove('chat-active'); // Удаляем класс, возвращая макет к центрированному полю ввода
+// Функция, которая прокручивает историю вниз
+function scrollToBottom() {
+    chatHistoryContainer.scrollTop = chatHistoryContainer.scrollHeight;
+}
+
+// Функция для отрисовки всех чипов на основе массива attachedFiles
+function renderFileChips() {
+    fileChipContainer.innerHTML = ''; // Очищаем контейнер
+
+    if (attachedFiles.length === 0) {
+        fileChipContainer.style.display = 'none';
+        return;
+    }
+
+    attachedFiles.forEach((file, index) => {
+        // Создаем HTML для чипа, используя index для идентификации при удалении
+        const chipHTML = `
+            <div class="file-chip">
+                <span class="file-chip-text" title="${file.name}">${file.name}</span>
+                <button class="file-chip-delete" data-file-index="${index}">×</button>
+            </div>
+        `;
+        fileChipContainer.innerHTML += chipHTML;
+    });
+
+    fileChipContainer.style.display = 'flex';
+
+    // Привязываем слушатели к кнопкам удаления после добавления всех чипов
+    fileChipContainer.querySelectorAll('.file-chip-delete').forEach(button => {
+        button.addEventListener('click', removeFileChip);
+    });
+}
+
+// Функция для удаления чипа
+function removeFileChip(e) {
+    if (e && e.target.classList.contains('file-chip-delete')) {
+        const indexToRemove = parseInt(e.target.getAttribute('data-file-index')); // Получаем индекс файла, который нужно удалить
+        attachedFiles.splice(indexToRemove, 1); // Удаляем файл из массива attachedFiles
+        renderFileChips(); // Перерисовываем контейнер, чтобы обновить чипы и индексы
+
+    } else {
+        // Логика, которая вызывается, когда нужно скрыть все (например, при Новом чате)
+        attachedFiles = []; // Очищаем массив
+        fileInput.value = '';
+        renderFileChips(); // Скрывает контейнер
+    }
+}
+
+// Функция переключения в режим "Активный чат"
+function activateChatMode() {
+    body.classList.add('chat-active');
     textarea.value = '';
+    removeFileChip(); // Используем функцию для полного сброса чипов и массива attachedFiles
+    autoResizeTextarea();
+    scrollToBottom();
+}
+
+// Функция переключения в режим "Новый чат"
+function activateStartMode() {
+    body.classList.remove('chat-active');
+    textarea.value = '';
+    attachedFiles = []; // Очищаем прикрепленные файлы
+    renderFileChips(); // Скрываем чипы
     autoResizeTextarea();
 }
 
-// Привязка событий
-
-// При нажатии на кнопку "Отправить"
-sendButton.addEventListener('click', () => {
-    if (textarea.value.trim() !== '') {
-        // Здесь в будущем будет логика отправки на бэкенд
-        // Пока просто активируем режим чата и очищаем поле
-        activateChatMode();
-    }
-});
-
-// При нажатии на кнопку "Новый чат"
-newChatButton.addEventListener('click', (e) => {
-    e.preventDefault(); // Отменяем стандартный переход по ссылке
-    activateStartMode();
-});
-
-// При нажатии на элементы истории (для демонстрации)
-historyItems.forEach(item => {
-    item.addEventListener('click', (e) => {
-        e.preventDefault();
-        activateChatMode(); // Переключаемся в режим чата с историей
-    });
-});
+// Автоматический ресайз при вводе
+textarea.addEventListener('input', autoResizeTextarea);
 
 // Отправка сообщения по клавише Enter
 textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { // Проверяем, нажата ли клавиша Enter (код 13 или 'Enter')
-        if (!e.shiftKey) { // Проверяем, что не нажата Shift (чтобы разрешить перенос строки по Shift+Enter)
-            e.preventDefault(); // Предотвращаем стандартное действие (перенос строки)
-            // Проверяем, что поле не пустое
-            if (textarea.value.trim() !== '') { // Вызываем функцию, которая имитирует клик по кнопке "Отправить"
-                activateChatMode();// В реальном приложении: sendButton.click(); или вызываем функцию отправки
-            }
+    // Проверяем Enter без Shift
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (textarea.value.trim() !== '' || attachedFiles.length > 0) {
+            // Отправляем, если есть текст ИЛИ прикреплены файлы
+            activateChatMode();
         }
     }
 });
 
-// Логика кнопки-скрепки
-const attachButton = document.querySelector('.attach-button');
-const fileInput = document.getElementById('file-input'); // Получаем наш скрытый input
-
-attachButton.addEventListener('click', () => {
-    fileInput.click(); // Имитируем клик по скрытому полю ввода файла
-});
-
-// Мониторинг, когда файл выбран
-fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-        console.log(`Выбран файл: ${fileInput.files[0].name}`); // Здесь в будущем будет логика загрузки файла или отображения его имени
-        alert(`Выбран файл: ${fileInput.files[0].name}`);
+// Отправка сообщения по кнопке "Отправить"
+sendButton.addEventListener('click', () => {
+    if (textarea.value.trim() !== '' || attachedFiles.length > 0) {
+        activateChatMode();
     }
 });
+
+// Кнопка "Новый чат"
+newChatButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    activateStartMode();
+});
+
+// Элементы истории (Переключают в режим чата)
+historyItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+        e.preventDefault();
+        activateChatMode();
+    });
+});
+
+// Логика кнопки-скрепки
+attachButton.addEventListener('click', () => {
+    fileInput.click(); // Кликаем по скрытому полю ввода
+});
+
+// Обработка выбора файла
+fileInput.addEventListener('change', () => {
+    // Добавляем новые выбранные файлы к общему списку
+    Array.from(fileInput.files).forEach(file => {
+        attachedFiles.push(file);
+    });
+    // Перерисовываем чипы
+    renderFileChips();
+    // Сбрасываем значение input[type="file"], чтобы можно было выбрать те же файлы снова
+    fileInput.value = '';
+});
+
+// Инициализация
+autoResizeTextarea();
+scrollToBottom();
+renderFileChips(); // Проверяем, если нужно что-то отобразить при загрузке
