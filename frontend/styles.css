@@ -120,18 +120,20 @@ html, body {
 /* Центральная часть */
 
 .main-content {
-/* Стили позиционирования относительно бокового меню */
+/* Стили позиционирования относительно бокового меню*/
     margin-left: 300px;
     width: calc(100% - 300px);
     min-height: 100vh;
-    padding: 0;
+    padding: 30px 0;
     box-sizing: border-box;
-    background-color: #f0f0f0;
+    background-color: #ffffff;
 
-    /* Центрирование контента по центру экрана */
+    /* Флексбокс для вертикального расположения */
     display: flex;
     flex-direction: column;
     align-items: center;
+
+    /* Прижимаем содержимое к низу страницы, пока чат не активен */
     justify-content: center;
 }
 
@@ -161,7 +163,7 @@ html, body {
     display: flex;
     align-items: flex-end;
     padding: 10px 15px;
-    background-color: #e3c9ee;
+    background-color: #F5D8FF;
     border-radius: 20px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
@@ -224,11 +226,6 @@ html, body {
     height: 24px;
 }
 
-/* Контейнер истории (пока пуст) */
-.chat-history-container {
-    display: none; /* Скрыт на стартовом экране */
-}
-
 /* Кастомный скроллбар */
 .custom-scrollbar::-webkit-scrollbar {
     width: 10px;
@@ -239,5 +236,70 @@ html, body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #AA63C2;
+    background-color: #D9D9D9;
+}
+
+/* Стили для истории чата */
+
+/* Общий контейнер истории, который будет заполнять пространство */
+.chat-history-container {
+/* Скрыт по умолчанию. Когда чат активен, мы переключим display */
+    display: none;
+
+    /* Занимает всю ширину, как и поле ввода */
+    width: 700px;
+    max-width: 80%;
+    margin-bottom: 30px;
+    overflow-y: auto;
+    flex-grow: 1;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+/* Общий стиль для каждого сообщения */
+.message {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 20px;
+    margin-bottom: 15px;
+    line-height: 1.4;
+    font-size: 15px;
+}
+
+.message-text {
+    margin: 0;
+}
+
+/* Сообщение от пользователя (Справа) */
+.user-message {
+    margin-left: auto; /* Прижимает к правому краю */
+    background-color: #F5D8FF; /* Светло-сиреневый */
+    color: #000;
+    border-bottom-right-radius: 5px;
+}
+
+/* Сообщение от AI */
+.ai-message {
+    margin-right: auto;
+    background-color: #f1f1f1;
+    color: #000;
+    border-bottom-left-radius: 5px;
+}
+
+/* Классы для переключения режимов */
+
+/* Когда чат активен, переключаем макет основного контента */
+body.chat-active .main-content {
+    justify-content: flex-start;
+}
+
+/* скрываем заголовок "Новый чат" */
+body.chat-active .chat-title {
+    display: none;
+}
+
+/* контейнер с сообщениями*/
+body.chat-active .chat-history-container {
+    display: flex; /* Показываем историю */
+    flex-direction: column;
 }
