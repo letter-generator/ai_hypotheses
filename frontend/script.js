@@ -68,3 +68,32 @@ historyItems.forEach(item => {
         activateChatMode(); // Переключаемся в режим чата с историей
     });
 });
+
+// Отправка сообщения по клавише Enter
+textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { // Проверяем, нажата ли клавиша Enter (код 13 или 'Enter')
+        if (!e.shiftKey) { // Проверяем, что не нажата Shift (чтобы разрешить перенос строки по Shift+Enter)
+            e.preventDefault(); // Предотвращаем стандартное действие (перенос строки)
+            // Проверяем, что поле не пустое
+            if (textarea.value.trim() !== '') { // Вызываем функцию, которая имитирует клик по кнопке "Отправить"
+                activateChatMode();// В реальном приложении: sendButton.click(); или вызываем функцию отправки
+            }
+        }
+    }
+});
+
+// Логика кнопки-скрепки
+const attachButton = document.querySelector('.attach-button');
+const fileInput = document.getElementById('file-input'); // Получаем наш скрытый input
+
+attachButton.addEventListener('click', () => {
+    fileInput.click(); // Имитируем клик по скрытому полю ввода файла
+});
+
+// Мониторинг, когда файл выбран
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+        console.log(`Выбран файл: ${fileInput.files[0].name}`); // Здесь в будущем будет логика загрузки файла или отображения его имени
+        alert(`Выбран файл: ${fileInput.files[0].name}`);
+    }
+});
