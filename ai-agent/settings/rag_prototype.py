@@ -6,7 +6,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_community.chat_models import GigaChat 
 
 # Путь к индексу
-FAISS_DIR = Path("C:/faiss_metal_index")
+FAISS_DIR = Path("C:\\PROJECT\\ai-agent\\faiss_index")
 
 print("Загружаем индекс...")
 embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
@@ -62,5 +62,5 @@ if __name__ == "__main__":
     print(ask("Как титан влияет на неметаллические включения в стали?"))
 
     print("\n" + "="*80)
-    print("ГИПОТЕЗЫ — ГЛАВНОЕ ДЛЯ ДИПЛОМА")
+    print("ГИПОТЕЗЫ")
     print(generate_hypotheses("Как снизить неметаллические включения в НЛЗ при выплавке стали?"))

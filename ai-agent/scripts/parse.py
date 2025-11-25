@@ -1,6 +1,6 @@
 """
 ArXiv + OpenAlex 
-cохраняется в data/raw_articles.jsonl
+cохраняется в data/raw.jsonl
 """
 import json
 import time
@@ -11,10 +11,10 @@ import re
 from pathlib import Path
 
 
-BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
+#BASE_DIR = Path(__file__).parent
+DATA_DIR = Path("C:\\PROJECT\\ai-agent\\data")
 DATA_DIR.mkdir(exist_ok=True)
-RAW_OUTPUT = DATA_DIR / "raw_articles.jsonl"
+RAW_OUTPUT = Path("C:\\PROJECT\\ai-agent\\data\\raw.jsonl")
 
 MIN_ARTICLES = 60  
 REQUEST_DELAY = (2.0, 4.0)

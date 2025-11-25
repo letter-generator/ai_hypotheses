@@ -5,11 +5,11 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 
 
-FAISS_DIR = Path("C:/faiss_metal_index")  # !тут были проблемы с onedrive. потом поменять на директорию проекта
+FAISS_DIR = Path("C:\\PROJECT\\ai-agent\\faiss_index")  # !тут были проблемы с onedrive. потом поменять на директорию проекта
 FAISS_DIR.mkdir(exist_ok=True)
 
-BASE_DIR = Path(__file__).parent
-CHUNKS_FILE = BASE_DIR / "data" / "clean_chunks.jsonl"
+
+CHUNKS_FILE = "C:\\PROJECT\\ai-agent\\data\\clean.jsonl"
 
 if not CHUNKS_FILE.exists():
     print(f"Не найден: {CHUNKS_FILE}")
@@ -42,14 +42,13 @@ with open(CHUNKS_FILE, "r", encoding="utf-8") as f:
 
 print(f"Всего загружено {len(docs)} чанков")
 
-print("создание FAISS-индекса. в C:/faiss_metal_index ...")
+print("создание FAISS-индекса ...")
 vectorstore = FAISS.from_documents(docs, embeddings)
 vectorstore.save_local(FAISS_DIR)
 
 print(f"\nвсё готово")
 print(f"индекс здесь: {FAISS_DIR}")
-print("   ├── index.faiss")
-print("   └── index.pkl")
+
 """
 # Тестовый поиск
 print("\nТестовый поиск по запросу «титан и неметаллические включения»:")

@@ -14,7 +14,7 @@ st.markdown("**на основе статей ArXiv/OpenAlex**")
 @st.cache_resource
 def load_vectorstore():
     try:
-        FAISS_DIR = Path("C:/faiss_metal_index")
+        FAISS_DIR = Path("C:\\PROJECT\\ai-agent\\faiss_index")
         embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
         return FAISS.load_local(
             FAISS_DIR, 

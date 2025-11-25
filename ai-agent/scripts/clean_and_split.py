@@ -6,9 +6,9 @@ from typing import List, Dict
 import tiktoken  
 
 
-BASE_DIR = Path(__file__).parent
-RAW_FILE = BASE_DIR / "data" / "raw_articles.jsonl"
-CHUNKS_FILE = BASE_DIR / "data" / "chunks.jsonl"
+#BASE_DIR = Path(__file__).parent
+RAW_FILE = Path("C:\\PROJECT\\ai-agent\\data\\raw.jsonl")
+CHUNKS_FILE = Path("C:\\PROJECT\\ai-agent\\data\\clean.jsonl")
 (CHUNKS_FILE.parent).mkdir(exist_ok=True)
 
 MAX_TOKENS_PER_CHUNK = 800      
@@ -62,7 +62,7 @@ def split_into_chunks(text: str, metadata: Dict, max_tokens: int = MAX_TOKENS_PE
 def main():
     if not RAW_FILE.exists():
         print(f"Ошибка: не найден {RAW_FILE}")
-        print("сначала запустить парсер parse_articles.py")
+        print("сначала запустить парсер parse.py")
         return
     all_chunks = []
     print("чтение сырых данных...")
