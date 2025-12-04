@@ -1,33 +1,70 @@
+/* Базовый стиль для всех скроллбаров */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(217, 217, 217, 0.1);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #D9D9D9;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #bbb;
+}
+
+/* Для Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #D9D9D9 rgba(217, 217, 217, 0.1);
+}
+
+/* БАЗОВЫЕ СТИЛИ И СБРОС */
+
 html, body {
     margin: 0;
     padding: 0;
     overflow-x: hidden;
     font-family: 'Fira Sans Condensed', Arial, sans-serif;
     font-weight: 400;
+    height: 100%;
 }
-/* Стили для боковой панели */
+
+/* САЙДБАР */
+
 .sidebar {
     width: 300px;
     height: 100vh;
     position: fixed;
     top: 0;
     left: 0;
-
-    /* Стили для макета */
     background-color: #C192D2;
     color: #000;
     padding: 20px 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
 }
 
-/* Шапка*/
+/* Верхняя часть сайдбара (лого + навигация) */
+.sidebar > div:first-child {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Шапка */
 .sidebar-header {
     text-align: center;
     margin-bottom: 40px;
     padding: 0 20px;
+    flex-shrink: 0;
 }
 
 .logo-image {
@@ -37,13 +74,16 @@ html, body {
     margin: 0 auto 10px auto;
 }
 
-/* Навигация*/
+/* НАВИГАЦИЯ - ОСНОВНОЙ КОНТЕЙНЕР */
 .sidebar-nav {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 10px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 20px;
+    min-height: 0;
 }
 
+/* Кнопки навигации*/
 .nav-button {
     display: block;
     width: 100%;
@@ -59,6 +99,7 @@ html, body {
     transition: background-color 0.2s;
     box-sizing: border-box;
     border-radius: 8px;
+    flex-shrink: 0;
 }
 
 .nav-button:hover {
@@ -70,13 +111,20 @@ html, body {
     cursor: default;
 }
 
-/* "История" */
+/* КОНТЕЙНЕР ДЛЯ СПИСКА ИСТОРИИ С ВЕРТИКАЛЬНЫМ СКРОЛЛОМ */
+.history-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
+/* Список истории */
 .history-list {
-    padding: 10px 20px;
+    padding: 10px 0;
 }
 
 .history-item {
-    transform: translateX(20px);
     display: block;
     padding: 8px 20px 8px 10px;
     text-decoration: none;
@@ -87,6 +135,10 @@ html, body {
     transition: background-color 0.2s;
     border-radius: 8px;
     margin-bottom: 5px;
+    margin-left: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .history-item:hover {
@@ -98,10 +150,10 @@ html, body {
     color: white;
 }
 
-/* "Информация" */
+/* "Информация"*/
 .info-button {
     display: block;
-    width: 100%;
+    width: calc(100% - 40px);
     padding: 15px 20px;
     text-decoration: none;
     color: inherit;
@@ -112,46 +164,74 @@ html, body {
     cursor: pointer;
     transition: background-color 0.2s;
     box-sizing: border-box;
-    margin-top: 20px;
-    margin: 20px 20px 20px 20px;
-    width: calc(100% - 40px);
+    margin: 20px;
     border-radius: 8px;
+    flex-shrink: 0;
 }
 
 .info-button:hover {
     background-color: #AE58CA;
 }
 
-/* Центральная часть */
-
 .main-content {
-/* Стили позиционирования относительно бокового меню*/
     margin-left: 300px;
-    width: calc(100% - 300px);
-    min-height: 100vh;
-    padding: 30px 0;
+    padding: 30px 40px;
+    height: 100vh;
     box-sizing: border-box;
-    background-color: #ffffff;
-
-    /* Флексбокс для вертикального расположения */
     display: flex;
     flex-direction: column;
-    align-items: center;
-
-    /* Прижимаем содержимое к низу страницы, пока чат не активен */
     justify-content: center;
+    align-items: center;
+    position: relative;
 }
 
-/* Контейнер для центрирования поля ввода и заголовка */
+/* Стартовый режим (по умолчанию) */
+body:not(.chat-active) .main-content {
+    justify-content: center;
+    align-items: center;
+}
+
+body:not(.chat-active) .chat-history-container {
+    display: none !important;
+}
+
+body:not(.chat-active) .chat-title {
+    display: block;
+}
+
+/* Активный режим чата */
+body.chat-active .main-content {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+body.chat-active .chat-title {
+    display: none;
+}
+
+body.chat-active .chat-history-container {
+    display: flex !important;
+    flex-direction: column;
+    flex-grow: 1;
+    width: 100%;
+    max-width: 700px;
+    margin-bottom: 20px;
+}
+
+body.chat-active .chat-input-area {
+    margin-top: auto;
+    width: 100%;
+    max-width: 700px;
+}
+
 .chat-center-wrapper {
     width: 700px;
-    max-width: 80%;
+    max-width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-/* Заголовок "Новый чат" */
 .chat-title {
     font-family: 'Fira Sans Condensed', sans-serif;
     font-size: 32px;
@@ -162,15 +242,11 @@ html, body {
     width: 100%;
 }
 
-/* Основной блок ввода */
 .chat-input-area {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-
-    max-width: 900px;
     width: 100%;
-    margin-top: auto;
     background-color: #F5D8FF;
     border-radius: 30px;
     padding: 10px 10px 10px 20px;
@@ -178,14 +254,12 @@ html, body {
     box-sizing: border-box;
 }
 
-/* Flex-контейнер для кнопок и textarea */
 .chat-input-area-content {
     display: flex;
     align-items: flex-end;
     width: 100%;
 }
 
-/* Поле для ввода текста */
 .chat-textarea {
     flex-grow: 1;
     border: none;
@@ -198,9 +272,10 @@ html, body {
     font-family: inherit;
     height: 75px;
     color: #4b2e67;
+    min-height: 75px;
+    max-height: 200px;
 }
 
-/* Стили для всех кнопок-иконок */
 .icon-button {
     width: 40px;
     height: 40px;
@@ -212,9 +287,9 @@ html, body {
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
 }
 
-/* Кнопка "Прикрепить"*/
 .attach-button {
     margin-right: 10px;
     border-radius: 100px;
@@ -224,7 +299,6 @@ html, body {
     background-color: #9245a8;
 }
 
-/* Кнопка отправки */
 .send-button {
     background-color: #AE58CA;
     border-radius: 100px;
@@ -237,126 +311,129 @@ html, body {
     background-color: #9245a8;
 }
 
-/* SVG-иконки внутри кнопок */
 .icon-button img {
     width: 24px;
     height: 24px;
 }
 
-/* Кастомный скроллбар */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: rgb(217 217 217 / 10%);
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #D9D9D9;
-}
-
-/* Стили для истории чата */
-
-/* Общий контейнер истории, который будет заполнять пространство */
+/* ИСТОРИЯ ЧАТА И СООБЩЕНИЯ */
 .chat-history-container {
-/* Скрыт по умолчанию. Когда чат активен, мы переключим display */
     display: none;
-
-    /* Занимает всю ширину, как и поле ввода */
+    flex-direction: column;
     width: 700px;
-    max-width: 80%;
-    margin-bottom: 30px;
+    max-width: 100%;
     overflow-y: auto;
-    flex-grow: 1;
-    padding: 0 10px;
+    padding: 10px;
     box-sizing: border-box;
+    flex-grow: 1;
 }
 
-/* Общий стиль для каждого сообщения */
 .message {
     max-width: 80%;
-    padding: 10px 15px;
+    padding: 12px 16px;
     border-radius: 20px;
     margin-bottom: 15px;
     line-height: 1.4;
     font-size: 15px;
+    word-wrap: break-word;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .message-text {
     margin: 0;
 }
 
-/* Сообщение от пользователя (Справа) */
 .user-message {
-    margin-left: auto; /* Прижимает к правому краю */
-    background-color: #F5D8FF; /* Светло-сиреневый */
+    align-self: flex-end;
+    background-color: #F5D8FF;
     color: #000;
     border-bottom-right-radius: 5px;
 }
 
-/* Сообщение от AI */
 .ai-message {
-    margin-right: auto;
+    align-self: flex-start;
     background-color: #f1f1f1;
     color: #000;
     border-bottom-left-radius: 5px;
 }
 
-/* Классы для переключения режимов */
-
-/* Когда чат активен, переключаем макет основного контента */
-body.chat-active .main-content {
-    justify-content: flex-start;
-}
-
-/* скрываем заголовок "Новый чат" */
-body.chat-active .chat-title {
+/* ИНДИКАТОР ПЕЧАТИ */
+.ai-typing-indicator {
     display: none;
+    align-self: flex-start;
+    margin-bottom: 15px;
 }
 
-/* контейнер с сообщениями*/
-body.chat-active .chat-history-container {
-    display: flex; /* Показываем историю */
-    flex-direction: column;
+.ai-typing-indicator .typing-indicator {
+    background-color: #f1f1f1 !important;
+    padding: 12px 16px;
 }
 
-/* Визуализация прикрепленного файла */
-.file-chip-container {
-/* Контейнер должен быть виден, только когда чип присутствует */
+.typing-dots {
     display: flex;
+    gap: 6px;
+    align-items: center;
+    height: 20px;
+}
+
+.typing-dots span {
+    width: 8px;
+    height: 8px;
+    background-color: #666;
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out;
+    opacity: 0.7;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typing {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.7;
+    }
+    30% {
+        transform: translateY(-5px);
+        opacity: 1;
+    }
+}
+
+/* ФАЙЛОВЫЕ ЧИПЫ */
+.file-chip-container {
+    display: none;
     flex-wrap: wrap;
     align-items: center;
     padding: 5px 0 10px 10px;
     border-bottom: 1px solid #dcdcdc;
     margin-bottom: 5px;
-    /* Скрыт по умолчанию */
-    display: none;
+    gap: 8px;
 }
 
 .file-chip {
-/* Сам чип */
     display: inline-flex;
     align-items: center;
     background-color: #AE58C3;
     color: #fff;
-    padding: 5px 10px;
+    padding: 6px 12px;
     border-radius: 15px;
     font-size: 14px;
-    margin-right: 10px;
 }
 
 .file-chip-text {
-/* Текст имени файла */
     max-width: 150px;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* Добавляет "..." в конце длинного имени */
+    text-overflow: ellipsis;
     margin-right: 8px;
 }
 
 .file-chip-delete {
-/* Кнопка "Удалить"*/
     background: none;
     border: none;
     color: #fff;
@@ -366,6 +443,7 @@ body.chat-active .chat-history-container {
     padding: 0;
     margin: 0;
     transition: color 0.2s;
+    font-family: inherit;
 }
 
 .file-chip-delete:hover {

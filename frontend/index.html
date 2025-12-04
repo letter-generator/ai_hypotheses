@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<!--class="chat-active"8-->
 
 <aside class="sidebar">
     <div>
@@ -16,15 +15,14 @@
             <img src="assets/images/logo.svg" alt="HypGen Logo" class="logo-image">
         </div>
 
-        <nav class="sidebar-nav custom-scrollbar">
+        <nav class="sidebar-nav">
             <a href="/new-chat" class="nav-button">Новый чат</a>
-
             <button class="nav-button history-static-button">История</button>
 
-            <div class="history-list">
-                <a href="/chat/1" class="history-item">А что если....</a>
-                <a href="/chat/2" class="history-item">А что если....</a>
-                <a href="/chat/3" class="history-item">А что если....</a>
+            <div class="history-scroll-container">
+                <div class="history-list">
+                    <!-- История чатов будет добавляться сюда динамически -->
+                </div>
             </div>
         </nav>
     </div>
@@ -33,49 +31,35 @@
 </aside>
 
 <main class="main-content">
-
+    <!-- Контейнер истории чата -->
     <div class="chat-history-container">
-        <div class="message user-message">
-            <p class="message-text">Мне интересно, каковы потенциальные гипотезы по поводу использования фиолетового цвета в дизайне?</p>
-        </div>
-
-        <div class="message ai-message">
-            <p class="message-text">Это отличный вопрос! Вот три гипотезы, касающиеся использования фиолетового (сиреневого) в интерфейсе HypGen:
-                <br>
-                1. **Гипотеза о креативности:** Фиолетовый цвет ассоциируется с креативностью и воображением, что стимулирует генерацию необычных идей.
-                <br>
-                2. **Гипотеза о спокойствии:** Светло-сиреневые тона (как в боковом меню) создают ощущение спокойствия, снижая стресс при работе с большим объемом информации.
-                <br>
-                3. **Гипотеза о бренде:** Уникальный сиреневый оттенок обеспечивает сильную визуальную идентификацию бренда (HypGen) среди конкурентов.</p>
-        </div>
+        <!-- Сообщения и индикатор печати будут добавляться сюда динамически -->
     </div>
 
     <div class="chat-center-wrapper">
         <h2 class="chat-title">Новый чат</h2>
 
         <div class="chat-input-area">
-
             <div class="file-chip-container">
+                <!-- Чипы файлов будут добавляться сюда -->
             </div>
 
             <div class="chat-input-area-content">
-
-                <textarea class="chat-textarea custom-scrollbar" placeholder="Мне интересно..."></textarea>
-
+                <textarea class="chat-textarea" placeholder="Мне интересно..."></textarea>
                 <button class="attach-button icon-button">
                     <img src="assets/images/icon-attach.svg" alt="Прикрепить файл">
                 </button>
-
                 <button class="send-button icon-button">
                     <img src="assets/images/icon-send.svg" alt="Отправить">
                 </button>
             </div>
         </div>
-
-        <input type="file" id="file-input" style="display: none;" multiple>
     </div>
 
+    <!-- Скрытый input для выбора файлов -->
+    <input type="file" id="file-input" multiple hidden>
 </main>
+
 <script src="script.js"></script>
 </body>
 </html>
