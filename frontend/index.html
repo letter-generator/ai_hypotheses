@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HypGen</title>
-    <link rel="stylesheet" href="fonts.css">
+    <link rel="stylesheet" href="assets/css/fonts.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,36 +27,100 @@
         </nav>
     </div>
 
-    <a href="/info" class="info-button">Информация</a>
+    <button class="info-button" type="button">Информация</button>
 </aside>
 
 <main class="main-content">
-    <!-- Контейнер истории чата -->
-    <div class="chat-history-container">
-        <!-- Сообщения и индикатор печати будут добавляться сюда динамически -->
-    </div>
+    <section class="chat-view">
+        <div class="chat-history-container">
+            <!-- Сообщения и индикатор печати будут добавляться сюда динамически -->
+        </div>
 
-    <div class="chat-center-wrapper">
-        <h2 class="chat-title">Новый чат</h2>
+        <div class="chat-center-wrapper">
+            <h2 class="chat-title">Новый чат</h2>
 
-        <div class="chat-input-area">
-            <div class="file-chip-container">
-                <!-- Чипы файлов будут добавляться сюда -->
-            </div>
+            <div class="chat-input-area">
+                <div class="file-chip-container">
+                    <!-- Чипы файлов будут добавляться сюда -->
+                </div>
 
-            <div class="chat-input-area-content">
-                <textarea class="chat-textarea" placeholder="Мне интересно..."></textarea>
-                <button class="attach-button icon-button">
-                    <img src="assets/images/icon-attach.svg" alt="Прикрепить файл">
-                </button>
-                <button class="send-button icon-button">
-                    <img src="assets/images/icon-send.svg" alt="Отправить">
-                </button>
+                <div class="chat-input-area-content">
+                    <textarea class="chat-textarea" placeholder="Мне интересно..." aria-label="Поле ввода сообщения"></textarea>
+                    <button class="attach-button icon-button" aria-label="Прикрепить файл">
+                        <img src="assets/images/icon-attach.svg" alt="Прикрепить файл">
+                    </button>
+                    <button class="send-button icon-button" aria-label="Отправить сообщение">
+                        <img src="assets/images/icon-send.svg" alt="Отправить">
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <!-- Скрытый input для выбора файлов -->
+    <section class="info-view" aria-hidden="true">
+        <div class="info-header">
+            <h2 class="info-heading">Отзывы</h2>
+        </div>
+
+        <div class="reviews-card">
+            <div class="reviews-input">
+                <div class="review-user">Пользователь_91011</div>
+                <div class="review-stars">
+                    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                </div>
+                <div class="review-textarea">
+                    <input type="text" placeholder="Поделись впечатлениями..." aria-label="Оставить отзыв">
+                    <button class="review-send" type="button">➜</button>
+                </div>
+            </div>
+
+            <div class="reviews-score">
+                <div class="score-title">Оценка</div>
+                <div class="score-main">4,6</div>
+                <div class="score-bars">
+                    <div class="score-row"><div class="bar bar-5"></div><span>5</span></div>
+                    <div class="score-row"><div class="bar bar-4"></div><span>4</span></div>
+                    <div class="score-row"><div class="bar bar-3"></div><span>3</span></div>
+                    <div class="score-row"><div class="bar bar-2"></div><span>2</span></div>
+                    <div class="score-row"><div class="bar bar-1"></div><span>1</span></div>
+                </div>
+            </div>
+
+            <div class="reviews-list">
+                <div class="review-item">
+                    <div class="review-user">Пользователь_1234</div>
+                    <div class="review-stars small">★ ★ ★ ★ ★</div>
+                    <div class="review-body">Мне всё нравится. Спасибо! Очень помогли. Бла-бла-бла-бла.</div>
+                </div>
+                <div class="review-divider"></div>
+                <div class="review-item">
+                    <div class="review-user">Пользователь_5678</div>
+                    <div class="review-stars small">★ ★ ★ ★ ★</div>
+                    <div class="review-body">Мне всё нравится. Спасибо! Очень помогли. Бла-бла-бла-бла.</div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="info-footer">
+            <div class="footer-block">
+                <h4>Информация</h4>
+                <p>Такая-то информация....</p>
+            </div>
+            <div class="footer-block">
+                <h4>О компании</h4>
+                <p>Сделано для ДИАЙПИ АО</p>
+            </div>
+            <div class="footer-block">
+                <h4>О команде</h4>
+                <p>Генератор букв</p>
+            </div>
+            <div class="footer-block">
+                <h4>О нейронке</h4>
+                <p>Такая-то нейронка....</p>
+            </div>
+        </footer>
+    </section>
+
     <input type="file" id="file-input" multiple hidden>
 </main>
 

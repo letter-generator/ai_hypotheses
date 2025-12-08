@@ -1,32 +1,110 @@
-
-// КОНСОЛИДАЦИЯ ЭЛЕМЕНТОВ DOM И ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// Базовые DOM-ссылки
 const body = document.body;
 const textarea = document.querySelector('.chat-textarea');
 const chatHistoryContainer = document.querySelector('.chat-history-container');
-const aiTypingIndicator = document.querySelector('.ai-typing-indicator');
-
-// Кнопки и навигация
 const sendButton = document.querySelector('.send-button');
 const attachButton = document.querySelector('.attach-button');
 const newChatButton = document.querySelector('.nav-button[href="/new-chat"]');
 const historyList = document.querySelector('.history-list');
-
-// Логика прикрепления файлов
 const fileInput = document.getElementById('file-input');
 const fileChipContainer = document.querySelector('.file-chip-container');
-let attachedFiles = [];
+const chatTitle = document.querySelector('.chat-title');
+const infoButton = document.querySelector('.info-button');
+const chatView = document.querySelector('.chat-view');
+const infoView = document.querySelector('.info-view');
 
-// Настройки
-const MAX_HEIGHT = 200;
-window.currentChatId = null;
-let chatIdCounter = 3;
+// Глобальное состояние
+const state = {
+    chats: [],
+    messages: new Map(), // chatId -> [{id, sender, text, ts, attachments?}]
+    currentChatId: null,
+    ui: { typing: false, sending: false, infoOpen: false },
+    attachments: []
+};
 
-// 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// Ключ для локального хранилища
+const STORAGE_KEY = 'hypgen_chat_state';
+
+// Сохранение состояния
+function saveState() {
+    // LocalStorage может хранить только строки, поэтому конвертируем Map в массив для сохранения
+    const stateToSave = {
+        chats: state.chats,
+        messages: Array.from(state.messages.entries()) // конвертируем Map в массив
+    };
+
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    } catch (e) {
+        console.error("Ошибка сохранения в LocalStorage:", e);
+    }
+}
+
+// Загрузка состояния
+function loadState() {
+    try {
+        const storedState = localStorage.getItem(STORAGE_KEY);
+        if (storedState) {
+            const loadedState = JSON.parse(storedState);
+            
+            // восстанавливаем чаты
+            state.chats = loadedState.chats || [];
+
+            // восстанавливаем сообщения: конвертируем массив обратно в Map
+            state.messages = new Map(loadedState.messages || []);
+            
+            // находим максимальный ID для корректной генерации новых чатов
+            if (state.chats.length > 0) {
+                // если у вас есть переменная chatIdCounter, обновите ее
+                // chatIdCounter = Math.max(...state.chats.map(c => c.chat_id)) + 1;
+            }
+        }
+    } catch (e) {
+        console.error("Ошибка загрузки из LocalStorage:", e);
+    }
+}
+
+const CONFIG = {
+    textareaMaxPx: 240
+};
+
+// Mock API-слой
+const api = {
+    async createChat(title) {
+        await delay(250);
+        const newChat = { chat_id: Date.now(), title: title || 'Новый чат' };
+        
+        // вызываем сохранение
+        state.chats.unshift(newChat);
+        saveState();
+        
+        return newChat;
+    },
+    async sendMessage({ chatId, text, files }) {
+        await delay(900);
+        const fileNames = files?.length ? files.map(f => f.name).join(', ') : 'Файлы не прикреплены';
+        return { text: `Это ответ AI на сообщение: "${text}". ${fileNames}` };
+    }
+};
+
+// Утилиты
+function delay(ms) {
+    return new Promise(res => setTimeout(res, ms));
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+    const num = bytes / Math.pow(k, i);
+    return `${num.toFixed(num >= 10 ? 0 : 1)} ${sizes[i]}`;
+}
 
 function autoResizeTextarea() {
     textarea.style.height = 'auto';
-    const newHeight = Math.min(textarea.scrollHeight, MAX_HEIGHT);
-    textarea.style.height = newHeight + 'px';
+    const newHeight = Math.min(textarea.scrollHeight, CONFIG.textareaMaxPx);
+    textarea.style.height = `${newHeight}px`;
 }
 
 function scrollToBottom() {
@@ -35,334 +113,308 @@ function scrollToBottom() {
     });
 }
 
-/**
- * Создает и добавляет сообщение в историю чата.
- * @param {string} sender - 'user' или 'ai'
- * @param {string} text - Текст сообщения
- */
-function createMessage(sender, text) {
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message', `${sender}-message`);
-    messageDiv.innerHTML = `<p class="message-text">${text}</p>`;
+// Рендер сообщений
+function renderMessages(chatId) {
+    chatHistoryContainer.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+    const list = state.messages.get(chatId) || [];
 
-    chatHistoryContainer.appendChild(messageDiv);
+    list.forEach(msg => {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', `${msg.sender}-message`);
+        const parts = [];
 
-    scrollToBottom();
-}
+        if (msg.attachments?.length) {
+            const attachBlock = document.createElement('div');
+            attachBlock.className = 'message-attachments';
 
-/**
- * Показывает индикатор печати AI.
- */
-function showTypingIndicator() {
-    // Удаляем старый индикатор если есть
-    const oldIndicator = chatHistoryContainer.querySelector('.ai-typing-indicator');
-    if (oldIndicator) {
-        oldIndicator.remove();
-    }
+            msg.attachments.forEach(att => {
+                const item = document.createElement('div');
+                item.className = 'attachment-chip';
+                item.innerHTML = `
+                    <div class="attachment-meta">
+                        <div class="attachment-name" title="${att.name}">${att.name}</div>
+                        <div class="attachment-size">${formatBytes(att.size)}</div>
+                    </div>
+                `;
+                attachBlock.appendChild(item);
+            });
+            parts.push(attachBlock);
+        }
 
-    // Создаем новый индикатор
-    const indicatorHTML = `
-        <div class="ai-typing-indicator">
+        const textEl = document.createElement('p');
+        textEl.className = 'message-text';
+        textEl.textContent = msg.text;
+        parts.push(textEl);
+
+        parts.forEach(el => messageDiv.appendChild(el));
+        fragment.appendChild(messageDiv);
+    });
+
+    if (state.ui.typing) {
+        const indicator = document.createElement('div');
+        indicator.className = 'ai-typing-indicator';
+        indicator.innerHTML = `
             <div class="message ai-message typing-indicator">
                 <div class="typing-dots">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+                    <span></span><span></span><span></span>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+        fragment.appendChild(indicator);
+    }
 
-    // Добавляем индикатор в КОНЕЦ контейнера
-    chatHistoryContainer.insertAdjacentHTML('beforeend', indicatorHTML);
-
-    // Получаем новый элемент индикатора
-    const newIndicator = chatHistoryContainer.querySelector('.ai-typing-indicator');
-    newIndicator.style.display = 'flex';
-
+    chatHistoryContainer.appendChild(fragment);
     scrollToBottom();
 }
 
-/**
- * Скрывает индикатор печати AI.
- */
-function hideTypingIndicator() {
-    const indicator = chatHistoryContainer.querySelector('.ai-typing-indicator');
-    if (indicator) {
-        indicator.remove();
-    }
+// Рендер истории
+function renderHistory() {
+    historyList.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+
+    state.chats.forEach(chat => {
+        const item = document.createElement('a');
+        item.href = `/chat/${chat.chat_id}`;
+        item.className = 'history-item';
+        item.dataset.chatId = chat.chat_id;
+        item.textContent = truncateTitle(chat.title);
+        if (state.currentChatId === chat.chat_id) {
+            item.classList.add('active');
+        }
+        item.addEventListener('click', onHistoryClick);
+        fragment.appendChild(item);
+    });
+
+    historyList.appendChild(fragment);
 }
 
-/**
- * Удаляет все чипы файлов и очищает массив прикрепленных файлов.
- */
-function clearAttachedFiles() {
-    attachedFiles = [];
-    fileInput.value = '';
-    renderFileChips();
+function truncateTitle(title) {
+    const MAX_TITLE_LENGTH = 30;
+    let t = title.replace(/\s+/g, ' ').trim();
+    if (!t) return 'Новый чат';
+    if (t.length <= MAX_TITLE_LENGTH) return t;
+    const temp = t.slice(0, MAX_TITLE_LENGTH).trim();
+    const lastSpace = temp.lastIndexOf(' ');
+    return (lastSpace > 0 ? temp.slice(0, lastSpace) : temp) + '...';
 }
 
-/**
- * Отображает чипы прикрепленных файлов.
- */
+// Рендер файловых чипов
 function renderFileChips() {
     fileChipContainer.innerHTML = '';
-
-    if (attachedFiles.length === 0) {
+    if (!state.attachments.length) {
         fileChipContainer.style.display = 'none';
         return;
     }
 
-    attachedFiles.forEach((file, index) => {
-        const chipHTML = `
-            <div class="file-chip">
-                <span class="file-chip-text" title="${file.name}">${file.name}</span>
-                <button class="file-chip-delete" data-index="${index}">×</button>
-            </div>
+    const fragment = document.createDocumentFragment();
+    state.attachments.forEach((file, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'file-chip';
+        chip.innerHTML = `
+            <span class="file-chip-text" title="${file.name}">${file.name}</span>
+            <button class="file-chip-delete" data-index="${index}" aria-label="Удалить файл">×</button>
         `;
-        fileChipContainer.innerHTML += chipHTML;
+        fragment.appendChild(chip);
     });
 
+    fileChipContainer.appendChild(fragment);
     fileChipContainer.style.display = 'flex';
 
-    // Привязываем обработчики к кнопкам удаления
-    fileChipContainer.querySelectorAll('.file-chip-delete').forEach(button => {
-        button.addEventListener('click', (e) => {
-            const indexToRemove = parseInt(e.currentTarget.dataset.index);
-            attachedFiles.splice(indexToRemove, 1);
+    fileChipContainer.querySelectorAll('.file-chip-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = Number(e.currentTarget.dataset.index);
+            state.attachments.splice(idx, 1);
             renderFileChips();
         });
     });
 }
 
-/**
- * Создает новый элемент в списке истории чатов.
- * @param {number} chatId - ID нового чата
- * @param {string} title - Текст для заголовка чата
- */
-function createHistoryItem(chatId, title) {
-    const newHistoryItem = document.createElement('a');
-    const MAX_TITLE_LENGTH = 30;
-
-    // Усечение текста
-    let truncatedTitle = title.replace(/\s+/g, ' ').trim();
-    if (truncatedTitle.length > MAX_TITLE_LENGTH) {
-        let tempTitle = truncatedTitle.substring(0, MAX_TITLE_LENGTH).trim();
-        let lastSpaceIndex = tempTitle.lastIndexOf(" ");
-        if (lastSpaceIndex !== -1) {
-            truncatedTitle = tempTitle.substring(0, lastSpaceIndex) + '...';
-        } else {
-            truncatedTitle = tempTitle + '...';
-        }
-    } else if (truncatedTitle.length === 0) {
-        truncatedTitle = 'Новый чат';
-    }
-
-    newHistoryItem.href = `/chat/${chatId}`;
-    newHistoryItem.classList.add('history-item');
-    newHistoryItem.textContent = truncatedTitle;
-    newHistoryItem.dataset.chatId = chatId;
-
-    // Добавляем в начало списка
-    historyList.prepend(newHistoryItem);
-
-    // Привязываем обработчик
-    newHistoryItem.addEventListener('click', handleHistoryItemClick);
-
-    return newHistoryItem;
-}
-
-/**
- * Обработчик нажатия на элемент истории.
- */
-function handleHistoryItemClick(e) {
-    e.preventDefault();
-    const item = e.currentTarget;
-    const chatId = parseInt(item.dataset.chatId);
-
-    if (!isNaN(chatId)) {
-        window.currentChatId = chatId;
-    }
-
-    // Очищаем историю
-    chatHistoryContainer.innerHTML = '';
-    hideTypingIndicator();
-
-    // Обновляем заголовок
-    document.querySelector('.chat-title').textContent = item.textContent;
-
-    // Активируем режим чата
-    activateChatMode();
-
-    // Имитация загрузки истории
-    createMessage('ai', 'Вы вернулись к старому чату.');
-    createMessage('user', 'Проверка истории...');
-}
-
-/**
- * Переключает интерфейс в режим "Активный чат".
- */
+// Управление режимами
 function activateChatMode() {
     body.classList.add('chat-active');
-    hideTypingIndicator();
+    closeInfoView();
 }
 
-/**
- * Переключает интерфейс в режим "Новый чат".
- */
 function activateStartMode() {
     body.classList.remove('chat-active');
-
-    // Очищаем историю сообщений
+    state.currentChatId = null;
+    state.ui.typing = false;
+    state.ui.sending = false;
+    state.attachments = [];
+    chatTitle.textContent = 'Новый чат';
     chatHistoryContainer.innerHTML = '';
-
-    // Сбрасываем поле ввода и файлы
+    fileInput.value = '';
+    renderFileChips();
+    autoResizeTextarea();
     textarea.value = '';
-    clearAttachedFiles();
+    textarea.focus();
+    renderHistory();
+    closeInfoView();
+}
+
+// Сервисные функции
+function upsertChat(chat) {
+    const exists = state.chats.find(c => c.chat_id === chat.chat_id);
+    if (!exists) {
+        state.chats.unshift(chat);
+    }
+}
+
+function pushMessage(chatId, message) {
+    const list = state.messages.get(chatId) || [];
+    list.push(message);
+    state.messages.set(chatId, list);
+}
+
+// Обработчики
+async function handleSend() {
+    if (state.ui.sending) return;
+
+    const text = textarea.value.trim();
+    const files = [...state.attachments];
+    if (!text && !files.length) return;
+
+    const attachmentsPayload = files.map(f => ({
+        name: f.name,
+        size: f.size,
+        type: (f.type || '').toUpperCase()
+    }));
+
+    state.ui.sending = true;
+    textarea.value = '';
+    fileInput.value = '';
+    state.attachments = [];
+    renderFileChips();
     autoResizeTextarea();
 
-    // Сбрасываем ID
-    window.currentChatId = null;
-
-    // Скрываем индикатор
-    hideTypingIndicator();
-
-    // Возвращаем стандартный заголовок
-    document.querySelector('.chat-title').textContent = 'Новый чат';
-
-    // Фокусируемся на поле ввода
-    textarea.focus();
-}
-
-/**
- * Создание нового чата (симуляция API).
- */
-async function createNewChat(initialMessage) {
-    // Симуляция задержки сети
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    chatIdCounter++;
-    const title = initialMessage.trim() || "Новый чат";
-
-    return {
-        chat_id: chatIdCounter,
-        title: title
-    };
-}
-
-/**
- * Основная функция отправки сообщения.
- */
-async function sendMessage() {
-    const messageText = textarea.value.trim();
-    const filesToSend = [...attachedFiles];
-
-    // Проверка на пустое сообщение
-    if (messageText === '' && filesToSend.length === 0) {
-        return;
+    if (!state.currentChatId) {
+        const chat = await api.createChat(text);
+        state.currentChatId = chat.chat_id;
+        chatTitle.textContent = chat.title;
+        upsertChat(chat);
+        activateChatMode();
+        renderHistory();
     }
 
-    // Отображаем сообщение пользователя
-    createMessage('user', messageText);
+    const chatId = state.currentChatId;
+    pushMessage(chatId, {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        sender: 'user',
+        text,
+        ts: Date.now(),
+        attachments: attachmentsPayload
+    });
+    renderMessages(chatId);
 
-    // Очищаем поле ввода
-    textarea.value = '';
-    clearAttachedFiles();
-    autoResizeTextarea();
-
-    // Фокусируемся обратно на поле ввода
-    textarea.focus();
-
-    // Показываем индикатор печати
-    showTypingIndicator();
+    state.ui.typing = true;
+    renderMessages(chatId);
 
     try {
-        // Если это новый чат
-        if (window.currentChatId === null) {
-            const newChatData = await createNewChat(messageText);
-            window.currentChatId = newChatData.chat_id;
+        const resp = await api.sendMessage({ chatId, text, files });
+        state.ui.typing = false;
+        pushMessage(chatId, {
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + 1),
+            sender: 'ai',
+            text: resp.text,
+            ts: Date.now()
+        });
+        renderMessages(chatId);
+    } catch (err) {
+        console.error('Ошибка отправки', err);
+        state.ui.typing = false;
+        pushMessage(chatId, {
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + 2),
+            sender: 'ai',
+            text: 'Ошибка отправки. Попробуйте ещё раз.',
+            ts: Date.now()
+        });
+        renderMessages(chatId);
+    } finally {
+        state.ui.sending = false;
+        textarea.focus();
+    }
+    try {
+        // ... (логика отправки и получения ответа AI)
 
-            // Добавляем в сайдбар
-            createHistoryItem(newChatData.chat_id, newChatData.title);
-
-            // Включаем режим чата
-            activateChatMode();
-
-            // Обновляем заголовок
-            document.querySelector('.chat-title').textContent = newChatData.title;
-        }
-
-        // Имитация задержки ответа от сервера
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Скрываем индикатор печати
-        hideTypingIndicator();
-
-        // Создаем имитацию ответа AI
-        let response = `Это ответ AI на сообщение: "${messageText}". `;
-        if (filesToSend.length > 0) {
-            const fileNames = filesToSend.map(f => f.name).join(', ');
-            response += `Были прикреплены файлы: ${fileNames}.`;
-        } else {
-            response += `Файлы не прикреплены.`;
-        }
-
-        // Отображаем ответ AI
-        createMessage('ai', response);
-
+        // вызываем сохранение
+        saveState(); // добавить сюда
+        
     } catch (error) {
-        console.error('Ошибка:', error);
-        hideTypingIndicator();
-        createMessage('ai', 'Извините, произошла ошибка. Пожалуйста, попробуйте еще раз.');
+        // ... (обработка ошибки)
     }
 }
 
-// 3. ПРИВЯЗКА СОБЫТИЙ И ИНИЦИАЛИЗАЦИЯ
+function onHistoryClick(e) {
+    e.preventDefault();
+    const chatId = Number(e.currentTarget.dataset.chatId);
+    if (!chatId) return;
+    closeInfoView();
+    state.currentChatId = chatId;
+    chatTitle.textContent = truncateTitle(state.chats.find(c => c.chat_id === chatId)?.title || 'Чат');
+    activateChatMode();
+    renderHistory();
+    renderMessages(chatId);
+    textarea.focus();
+}
 
-// Автоматический ресайз при вводе
+function handleFiles(files) {
+    Array.from(files).forEach(file => {
+        const exists = state.attachments.some(f => f.name === file.name && f.size === file.size);
+        if (!exists) state.attachments.push(file);
+    });
+    renderFileChips();
+}
+
+// Инфо-вид
+function openInfoView() {
+    state.ui.infoOpen = true;
+    chatView.setAttribute('aria-hidden', 'true');
+    infoView.setAttribute('aria-hidden', 'false');
+    body.classList.add('info-mode');
+}
+
+function closeInfoView() {
+    state.ui.infoOpen = false;
+    chatView.setAttribute('aria-hidden', 'false');
+    infoView.setAttribute('aria-hidden', 'true');
+    body.classList.remove('info-mode');
+    textarea.focus();
+}
+
+// Привязка событий
 textarea.addEventListener('input', autoResizeTextarea);
-
-// Отправка сообщения по клавише Enter
 textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        handleSend();
     }
 });
 
-// Отправка сообщения по кнопке
-sendButton.addEventListener('click', sendMessage);
+sendButton.addEventListener('click', handleSend);
 
-// Кнопка "Новый чат"
 newChatButton.addEventListener('click', (e) => {
     e.preventDefault();
     activateStartMode();
 });
 
-// Кнопка прикрепления файлов
-attachButton.addEventListener('click', () => {
-    fileInput.click();
+attachButton.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+infoButton.addEventListener('click', () => openInfoView());
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && state.ui.infoOpen) {
+        closeInfoView();
+    }
 });
 
-// Обработка выбора файлов
-fileInput.addEventListener('change', () => {
-    Array.from(fileInput.files).forEach(file => {
-        // Проверка на дубликаты
-        if (!attachedFiles.some(f => f.name === file.name && f.size === file.size)) {
-            attachedFiles.push(file);
-        }
-    });
-    renderFileChips();
-});
-
-// Инициализация при загрузке страницы
+// Инициализация
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Приложение инициализировано');
-
     autoResizeTextarea();
-    hideTypingIndicator();
     activateStartMode();
-
-    // Фокусируемся на поле ввода
-    textarea.focus();
 });
+
+loadState();
+renderHistory();
+activateStartMode();
