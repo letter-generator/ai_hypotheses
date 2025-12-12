@@ -9,38 +9,45 @@ FAISS_DIR = Path("C:\\PROJECT\\ai-agent\\faiss_index")  # !тут были пр�
 FAISS_DIR.mkdir(exist_ok=True)
 
 
-CHUNKS_FILE = "C:\\PROJECT\\ai-agent\\data\\clean.jsonl"
+CHUNKS_FILE = Path("C:\\PROJECT\\ai-agent\\data\\clean.jsonl")
 
 if not CHUNKS_FILE.exists():
     print(f"Не найден: {CHUNKS_FILE}")
     exit()
 
-print("загрузка модели эмбеддингов multilingual-e5-large...")
+print("загрузка модели эмбеддингов multilingual-e5-large-instruct...")
 embeddings = HuggingFaceEmbeddings(
-    model_name="intfloat/multilingual-e5-large",
+    model_name="intfloat/multilingual-e5-large-instruct",
     model_kwargs={'device': 'cpu'}
 )
 
 print("загрузка чанков...")
 docs = []
+skipped_short = 0
 with open(CHUNKS_FILE, "r", encoding="utf-8") as f:
     for i, line in enumerate(f, 1):
         if not line.strip():
             continue
         data = json.loads(line)
+        if len(chunk_text) < 200:
+            skipped_short += 1
+            continue
         docs.append(Document(
             page_content=data["chunk_text"],   
             metadata={
                 "title": data.get("title", "Без названия"),
                 "source": data.get("source", ""),
                 "pdf_url": data.get("pdf_url", ""),
-                "chunk_id": data.get("chunk_id", f"chunk_{i}")
+                "chunk_id": data.get("chunk_id", f"chunk_{i}"),
+                "country": data.get("country", "Не определено"),
+                "year": data.get("year", "Не определено")
             }
         ))
         if i % 50 == 0:
             print(f"   загружено {i} чанков...")
 
 print(f"Всего загружено {len(docs)} чанков")
+print(f"Пропущено (короче 200 символов): {skipped_short}")
 
 print("создание FAISS-индекса ...")
 vectorstore = FAISS.from_documents(docs, embeddings)
@@ -55,5 +62,6 @@ print("\nТестовый поиск по запросу «титан и нем�
 results = vectorstore.similarity_search("титан и неметаллические включения", k=3)
 for i, doc in enumerate(results, 1):
     print(f"\n{i}. {doc.metadata.get('title', 'Без названия')[:100]}")
+    print(f"   Страна: {doc.metadata.get('country')}, Год: {doc.metadata.get('year')}")
     print(doc.page_content[:400] + "...")
 """
