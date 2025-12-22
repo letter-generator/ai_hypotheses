@@ -93,7 +93,7 @@ def search_openalex(query: str, max_results: int = 30):
                             if pos < len(words):
                                 words[pos] = word
                     abstract = " ".join(w for w in words if w)
-
+# json
                 pdf_url = ""
                 if work.get("primary_location", {}).get("pdf_url"):
                     pdf_url = work["primary_location"]["pdf_url"]
@@ -149,7 +149,7 @@ def main():
         if len(all_articles) >= MIN_ARTICLES + 20:
             break
 
-    final = all_articles[:MIN_ARTICLES + 30]  # запас на дубли
+    final = all_articles[:MIN_ARTICLES + 30]  #запас на дубли
     save_jsonl(final, RAW_OUTPUT)
     print(f"\nвсё оке. файл: {RAW_OUTPUT}")
 

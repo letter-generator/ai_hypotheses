@@ -15,6 +15,7 @@ charset-normalizer==3.4.4
 click==8.3.1
 colorama==0.4.6
 dataclasses-json==0.6.7
+distro==1.9.0
 faiss-cpu==1.13.0
 fastapi==0.122.0
 ffmpy==1.0.0
@@ -35,6 +36,7 @@ httpx-sse==0.4.3
 huggingface-hub==0.36.0
 idna==3.11
 Jinja2==3.1.6
+jiter==0.12.0
 joblib==1.5.2
 jsonpatch==1.33
 jsonpointer==3.0.0
@@ -42,8 +44,9 @@ jsonschema==4.25.1
 jsonschema-specifications==2025.9.1
 langchain-classic==1.0.0
 langchain-community==0.4.1
-langchain-core==1.1.0
+langchain-core==1.2.4
 langchain-huggingface==1.1.0
+langchain-openai==1.1.6
 langchain-text-splitters==1.0.0
 langsmith==0.4.47
 markdown-it-py==4.0.0
@@ -56,6 +59,7 @@ mypy_extensions==1.1.0
 narwhals==2.12.0
 networkx==3.6
 numpy==2.3.5
+openai==2.14.0
 orjson==3.11.4
 packaging==25.0
 pandas==2.3.3
@@ -110,6 +114,7 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2025.2
 urllib3==2.5.0
+uuid_utils==0.12.0
 uvicorn==0.38.0
 watchdog==6.0.0
 yarl==1.22.0
