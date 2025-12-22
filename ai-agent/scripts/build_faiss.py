@@ -28,24 +28,30 @@ with open(CHUNKS_FILE, "r", encoding="utf-8") as f:
     for i, line in enumerate(f, 1):
         if not line.strip():
             continue
-        data = json.loads(line)
-        if len(chunk_text) < 200:
-            skipped_short += 1
+        try:
+            data = json.loads(line)
+            if len(data["chunk_text"].strip()) < 200:
+                skipped_short += 1
+                continue
+            docs.append(Document(
+                page_content=data["chunk_text"],   
+                metadata={
+                    "title": data.get("title", "Без названия"),
+                    "source": data.get("source", ""),
+                    "pdf_url": data.get("pdf_url", ""),
+                    "chunk_id": data.get("chunk_id", f"chunk_{i}"),
+                    "country": data.get("country", "Не определено"),
+                    "year": data.get("year", "Не определено")
+                }
+            ))
+            if i % 50 == 0:
+                print(f"   загружено {i} чанков...")
+        except json.JSONDecodeError as e:
+            print(f"Ошибка JSON в строке {i}: {e}")
             continue
-        docs.append(Document(
-            page_content=data["chunk_text"],   
-            metadata={
-                "title": data.get("title", "Без названия"),
-                "source": data.get("source", ""),
-                "pdf_url": data.get("pdf_url", ""),
-                "chunk_id": data.get("chunk_id", f"chunk_{i}"),
-                "country": data.get("country", "Не определено"),
-                "year": data.get("year", "Не определено")
-            }
-        ))
-        if i % 50 == 0:
-            print(f"   загружено {i} чанков...")
-
+        except KeyError as e:
+            print(f"Отсутствует поле {e} в строке {i}")
+            continue
 print(f"Всего загружено {len(docs)} чанков")
 print(f"Пропущено (короче 200 символов): {skipped_short}")
 
