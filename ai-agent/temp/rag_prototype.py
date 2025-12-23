@@ -19,6 +19,7 @@ CREDENTIALS = GIGACHAT_TOKEN
 def get_generator_llm():
     return GigaChat(
         credentials=CREDENTIALS,
+        model='Gigachat-Pro',
         temperature=0.8,  
         verify_ssl_certs=False
     )
@@ -27,7 +28,7 @@ def get_generator_llm():
 def get_critic_llm():
     return GigaChat(
         credentials=CREDENTIALS,
-        model="GigaChat-Max",   
+        model='Gigachat-Max',
         temperature=0.2,        
         verify_ssl_certs=False
     )
@@ -43,8 +44,8 @@ def ask(question: str):
     context = "\n\n".join([f"Источник: {d.metadata.get('title','?')}\n{d.page_content}" for d in docs])
     llm = GigaChat(
         credentials=CREDENTIALS,
-        model="GigaChat-Pro",
-        temperature=0.1,
+        model='Gigachat-Pro',
+        temperature=0.4,
         verify_ssl_certs=False
     )
     return (QA_PROMPT | llm).invoke({"context": context, "question": question}).content
