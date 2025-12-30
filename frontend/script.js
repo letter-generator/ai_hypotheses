@@ -19,7 +19,10 @@ const state = {
     messages: new Map(), // chatId -> [{id, sender, text, ts, attachments?}]
     currentChatId: null,
     ui: { typing: false, sending: false, infoOpen: false },
-    attachments: []
+    attachments: [],
+    reviews: [],
+    userId: null,
+    selectedRating: 0
 };
 
 // Ключ для локального хранилища
@@ -403,18 +406,183 @@ fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
 infoButton.addEventListener('click', () => openInfoView());
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && state.ui.infoOpen) {
-        closeInfoView();
-    }
-});
-
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     autoResizeTextarea();
     activateStartMode();
+    
+    const submitBtn = document.getElementById('submit-review');
+    const reviewInput = document.getElementById('review-text');
+
+    if (submitBtn) {
+        submitBtn.onclick = handleReviewSubmit;
+    }
+
+    if (reviewInput) {
+        reviewInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); 
+                handleReviewSubmit();
+            }
+        });
+    }
 });
+
+// инициализация пользователя (при загрузке страницы)
+function initUser() {
+    let id = localStorage.getItem('hypgen_user_id');
+    if (!id) {
+        id = Math.floor(1000 + Math.random() * 9000); // Порядковый номер
+        localStorage.setItem('hypgen_user_id', id);
+    }
+    state.userId = id;
+    const userLabel = document.querySelector('.review-user');
+    if (userLabel) userLabel.textContent = `Пользователь_${id}`;
+}
+
+// выбор звезд
+function initStarRating() {
+    const stars = document.querySelectorAll('#rating-picker .star');
+    stars.forEach((star, index) => {
+        star.addEventListener('click', () => {
+            // Устанавливаем рейтинг (индекс + 1, так как индекс начинается с 0)
+            state.selectedRating = index + 1; 
+            
+            // Подсвечиваем звезды
+            stars.forEach((s, i) => {
+                s.classList.toggle('active', i <= index);
+            });
+            console.log("Выбранный рейтинг:", state.selectedRating); // Для проверки в консоли
+        });
+    });
+}
+
+document.getElementById('review-text').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        handleReviewSubmit();
+    }
+});
+
+// отправка отзыва
+function handleReviewSubmit() {
+    const reviewInput = document.getElementById('review-text');
+    const text = reviewInput.value.trim();
+    
+    // Проверяем именно текущее состояние
+    if (!text || state.selectedRating === 0) {
+        alert('Пожалуйста, укажите рейтинг и введите текст отзыва.');
+        return;
+    }
+
+    // Если всё ок, создаем отзыв
+    const newReview = {
+        id: Date.now(),
+        userId: state.userId,
+        rating: state.selectedRating,
+        text: text
+    };
+
+    state.reviews.push(newReview);
+    saveReviewsToStorage();
+    renderReviews();
+
+    // Очистка после успешной отправки
+    reviewInput.value = '';
+    state.selectedRating = 0;
+    
+    // Снимаем подсветку со звезд
+    document.querySelectorAll('#rating-picker .star').forEach(s => s.classList.remove('active'));
+}
+
+// рендер списка
+function renderReviews() {
+    const list = document.querySelector('.reviews-list');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    state.reviews.forEach(rev => {
+        const isMine = String(rev.userId) === String(state.userId);
+        const item = document.createElement('div');
+        item.className = 'review-item';
+        
+        // Формируем шапку отзыва: Ник + (Вы) + Кнопка удаления
+        item.innerHTML = `
+            <div class="review-header">
+                <div class="review-user">
+                    Пользователь_${rev.userId} ${isMine ? '<span class="my-label">(Вы)</span>' : ''}
+                </div>
+                ${isMine ? `<button class="delete-review-btn" onclick="deleteReview(${rev.id})">Удалить отзыв</button>` : ''}
+            </div>
+            <div class="review-stars small">${'★'.repeat(rev.rating)}</div>
+            <div class="review-body">${rev.text}</div>
+        `;
+        list.appendChild(item);
+        
+        const divider = document.createElement('div');
+        divider.className = 'review-divider';
+        list.appendChild(divider);
+    });
+    
+    updateAverageScore();
+}
+
+window.deleteReview = function(id) {
+    state.reviews = state.reviews.filter(r => r.id !== id);
+    saveReviewsToStorage();
+    renderReviews();
+};
+
+// Сохранение именно отзывов
+function saveReviewsToStorage() {
+    localStorage.setItem('hypgen_reviews', JSON.stringify(state.reviews));
+}
+
+function loadReviewsFromStorage() {
+    const saved = localStorage.getItem('hypgen_reviews');
+    if (saved) state.reviews = JSON.parse(saved);
+}
+
+function updateAverageScore() {
+    const scoreDisplay = document.querySelector('.score-main');
+    if (!scoreDisplay) return;
+
+    // Если отзывов нет
+    if (state.reviews.length === 0) {
+        scoreDisplay.textContent = "0,0";
+        for (let i = 1; i <= 5; i++) {
+            const bar = document.getElementById(`bar-${i}`);
+            if (bar) bar.style.width = '0%';
+        }
+        return;
+    }
+
+    // Считаем средний балл
+    const totalScore = state.reviews.reduce((acc, r) => acc + r.rating, 0);
+    const avg = totalScore / state.reviews.length;
+    scoreDisplay.textContent = avg.toFixed(1).replace('.', ',');
+
+    // Сколько каких оценок
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    state.reviews.forEach(rev => {
+        distribution[rev.rating]++;
+    });
+
+    // Обновляем ширину полосок
+    for (let i = 1; i <= 5; i++) {
+        const bar = document.getElementById(`bar-${i}`);
+        if (bar) {
+            // Процент = (кол-во конкретных оценок / общее кол-во отзывов) * 100
+            const percentage = (distribution[i] / state.reviews.length) * 100;
+            bar.style.width = percentage + '%';
+        }
+    }
+}
 
 loadState();
 renderHistory();
 activateStartMode();
+initUser();
+initStarRating();
+loadReviewsFromStorage();
+renderReviews();
+document.querySelector('.review-send').onclick = handleReviewSubmit;

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HypGen</title>
+    <link rel="icon" type="image/png" href="assets/images/logo_mini.svg">
     <link rel="stylesheet" href="assets/css/fonts.css">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -64,41 +65,50 @@
 
         <div class="reviews-card">
             <div class="reviews-input">
-                <div class="review-user">Пользователь_91011</div>
-                <div class="review-stars">
-                    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                <div class="review-user" id="current-user-id">Пользователь_...</div>
+                <div class="review-stars-input" id="rating-picker">
+                    <span class="star" data-value="1">★</span>
+                    <span class="star" data-value="2">★</span>
+                    <span class="star" data-value="3">★</span>
+                    <span class="star" data-value="4">★</span>
+                    <span class="star" data-value="5">★</span>
                 </div>
                 <div class="review-textarea">
-                    <input type="text" placeholder="Поделись впечатлениями..." aria-label="Оставить отзыв">
-                    <button class="review-send" type="button">➜</button>
+                    <input type="text" id="review-text" placeholder="Поделись впечатлениями..." aria-label="Оставить отзыв">
+                    <button class="send-button review-send-btn" id="submit-review" type="button">
+                        <img src="assets/images/icon-send.svg" alt="Отправить" class="send-icon-img">
+                    </button>
                 </div>
             </div>
 
             <div class="reviews-score">
-                <div class="score-title">Оценка</div>
-                <div class="score-main">4,6</div>
+                <div class="score-title">Рейтинг</div>
+                <div class="score-main" id="average-rating">0,0</div>
                 <div class="score-bars">
-                    <div class="score-row"><div class="bar bar-5"></div><span>5</span></div>
-                    <div class="score-row"><div class="bar bar-4"></div><span>4</span></div>
-                    <div class="score-row"><div class="bar bar-3"></div><span>3</span></div>
-                    <div class="score-row"><div class="bar bar-2"></div><span>2</span></div>
-                    <div class="score-row"><div class="bar bar-1"></div><span>1</span></div>
+                    <div class="score-row">
+                        <div class="bar-container"><div class="bar-fill" id="bar-5"></div></div>
+                        <span>5</span>
+                    </div>
+                    <div class="score-row">
+                        <div class="bar-container"><div class="bar-fill" id="bar-4"></div></div>
+                        <span>4</span>
+                    </div>
+                    <div class="score-row">
+                        <div class="bar-container"><div class="bar-fill" id="bar-3"></div></div>
+                        <span>3</span>
+                    </div>
+                    <div class="score-row">
+                        <div class="bar-container"><div class="bar-fill" id="bar-2"></div></div>
+                        <span>2</span>
+                    </div>
+                    <div class="score-row">
+                        <div class="bar-container"><div class="bar-fill" id="bar-1"></div></div>
+                        <span>1</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="reviews-list">
-                <div class="review-item">
-                    <div class="review-user">Пользователь_1234</div>
-                    <div class="review-stars small">★ ★ ★ ★ ★</div>
-                    <div class="review-body">Мне всё нравится. Спасибо! Очень помогли. Бла-бла-бла-бла.</div>
-                </div>
-                <div class="review-divider"></div>
-                <div class="review-item">
-                    <div class="review-user">Пользователь_5678</div>
-                    <div class="review-stars small">★ ★ ★ ★ ★</div>
-                    <div class="review-body">Мне всё нравится. Спасибо! Очень помогли. Бла-бла-бла-бла.</div>
-                </div>
-            </div>
+            <div class="reviews-list" id="reviews-container"></div>
         </div>
 
         <footer class="info-footer">
