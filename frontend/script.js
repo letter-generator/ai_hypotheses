@@ -13,6 +13,14 @@ const infoButton = document.querySelector('.info-button');
 const chatView = document.querySelector('.chat-view');
 const infoView = document.querySelector('.info-view');
 
+const API_CONFIG = {
+    BASE_URL: 'http://localhost:5000/api',
+    HEADERS: {
+        'Content-Type': 'application/json',
+        'X-User-ID': null
+    }
+};
+
 // Глобальное состояние
 const state = {
     chats: [],
@@ -27,6 +35,17 @@ const state = {
 
 // Ключ для локального хранилища
 const STORAGE_KEY = 'hypgen_chat_state';
+
+// Генерация/получение ID пользователя из localStorage
+function getOrCreateUserId() {
+    let userId = localStorage.getItem('hypgen_user_id');
+    if (!userId) {
+        userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('hypgen_user_id', userId);
+    }
+    API_CONFIG.HEADERS['X-User-ID'] = userId;
+    return userId;
+}
 
 // Сохранение состояния
 function saveState() {
@@ -44,24 +63,31 @@ function saveState() {
 }
 
 // Загрузка состояния
-function loadState() {
+async function loadState() {
     try {
         const storedState = localStorage.getItem(STORAGE_KEY);
         if (storedState) {
             const loadedState = JSON.parse(storedState);
-            
-            // восстанавливаем чаты
             state.chats = loadedState.chats || [];
-
-            // восстанавливаем сообщения: конвертируем массив обратно в Map
             state.messages = new Map(loadedState.messages || []);
-            
-            // находим максимальный ID для корректной генерации новых чатов
-            if (state.chats.length > 0) {
-                // если у вас есть переменная chatIdCounter, обновите ее
-                // chatIdCounter = Math.max(...state.chats.map(c => c.chat_id)) + 1;
-            }
         }
+        
+        // Дополнительно загружаем историю с сервера
+        try {
+            const serverHistory = await api.loadChatHistory();
+            // Объединяем локальную и серверную историю
+            const serverIds = new Set(serverHistory.map(c => c.chat_id));
+            
+            // Добавляем только те чаты, которых нет на сервере
+            const localOnlyChats = state.chats.filter(c => !serverIds.has(c.chat_id));
+            state.chats = [...serverHistory, ...localOnlyChats];
+            
+            saveState(); // Сохраняем объединённое состояние
+        } catch (error) {
+            console.warn('Could not load server history:', error);
+        }
+        
+        renderHistory();
     } catch (e) {
         console.error("Ошибка загрузки из LocalStorage:", e);
     }
@@ -74,19 +100,93 @@ const CONFIG = {
 // Mock API-слой
 const api = {
     async createChat(title) {
-        await delay(250);
-        const newChat = { chat_id: Date.now(), title: title || 'Новый чат' };
+        getOrCreateUserId();
         
-        // вызываем сохранение
+        const response = await fetch(`${API_CONFIG.BASE_URL}/new_chat`, {
+            method: 'POST',
+            headers: API_CONFIG.HEADERS,
+            body: JSON.stringify({ title: title || 'Новый чат' })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to create chat');
+        }
+        
+        const data = await response.json();
+        
+        // Сохраняем в локальное состояние
+        const newChat = { chat_id: data.chat_id, title: data.title };
         state.chats.unshift(newChat);
         saveState();
         
         return newChat;
     },
+
     async sendMessage({ chatId, text, files }) {
-        await delay(900);
-        const fileNames = files?.length ? files.map(f => f.name).join(', ') : 'Файлы не прикреплены';
-        return { text: `Это ответ AI на сообщение: "${text}". ${fileNames}` };
+        getOrCreateUserId();
+        
+        const attachmentsPayload = files?.map(f => ({
+            name: f.name,
+            size: f.size,
+            type: f.type || 'unknown'
+        })) || [];
+
+        const response = await fetch(`${API_CONFIG.BASE_URL}/send_message`, {
+            method: 'POST',
+            headers: API_CONFIG.HEADERS,
+            body: JSON.stringify({
+                chat_id: chatId,
+                message: text,
+                attachments: attachmentsPayload
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to send message');
+        }
+
+        const data = await response.json();
+        return { 
+            text: data.bot_response.content,
+            messageId: data.bot_response.id
+        };
+    },
+
+    async loadChatHistory() {
+        getOrCreateUserId();
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}/chat_history`, {
+            method: 'GET',
+            headers: API_CONFIG.HEADERS
+        });
+        
+        if (!response.ok) {
+            console.error('Failed to load chat history');
+            return [];
+        }
+        
+        const data = await response.json();
+        return data.map(chat => ({
+            chat_id: chat.chat_id,
+            title: chat.title
+        }));
+    },
+
+    async loadChatMessages(chatId) {
+        getOrCreateUserId();
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}/chat/${chatId}/messages`, {
+            method: 'GET',
+            headers: API_CONFIG.HEADERS
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load messages');
+        }
+        
+        const data = await response.json();
+        return data.messages;
     }
 };
 
@@ -292,17 +392,25 @@ async function handleSend() {
     autoResizeTextarea();
 
     if (!state.currentChatId) {
-        const chat = await api.createChat(text);
-        state.currentChatId = chat.chat_id;
-        chatTitle.textContent = chat.title;
-        upsertChat(chat);
-        activateChatMode();
-        renderHistory();
+        try {
+            const chat = await api.createChat(text);
+            state.currentChatId = chat.chat_id;
+            chatTitle.textContent = chat.title;
+            upsertChat(chat);
+            activateChatMode();
+            renderHistory();
+        } catch (error) {
+            console.error('Error creating chat:', error);
+            state.ui.sending = false;
+            return;
+        }
     }
 
     const chatId = state.currentChatId;
+    
+    // Локальное сохранение сообщения пользователя
     pushMessage(chatId, {
-        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        id: 'temp_' + Date.now(),
         sender: 'user',
         text,
         ts: Date.now(),
@@ -316,18 +424,26 @@ async function handleSend() {
     try {
         const resp = await api.sendMessage({ chatId, text, files });
         state.ui.typing = false;
+        
+        // Сохраняем ответ AI
         pushMessage(chatId, {
-            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + 1),
+            id: resp.messageId || crypto.randomUUID(),
             sender: 'ai',
             text: resp.text,
             ts: Date.now()
         });
+        
+        // Синхронизируем с сервером (загружаем все сообщения заново для гарантии)
+        const serverMessages = await api.loadChatMessages(chatId);
+        state.messages.set(chatId, serverMessages);
+        
         renderMessages(chatId);
+        saveState();
     } catch (err) {
         console.error('Ошибка отправки', err);
         state.ui.typing = false;
         pushMessage(chatId, {
-            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + 2),
+            id: 'error_' + Date.now(),
             sender: 'ai',
             text: 'Ошибка отправки. Попробуйте ещё раз.',
             ts: Date.now()
@@ -337,27 +453,30 @@ async function handleSend() {
         state.ui.sending = false;
         textarea.focus();
     }
-    try {
-        // ... (логика отправки и получения ответа AI)
-
-        // вызываем сохранение
-        saveState(); // добавить сюда
-        
-    } catch (error) {
-        // ... (обработка ошибки)
-    }
 }
 
-function onHistoryClick(e) {
+async function onHistoryClick(e) {
     e.preventDefault();
     const chatId = Number(e.currentTarget.dataset.chatId);
     if (!chatId) return;
+    
     closeInfoView();
     state.currentChatId = chatId;
     chatTitle.textContent = truncateTitle(state.chats.find(c => c.chat_id === chatId)?.title || 'Чат');
     activateChatMode();
     renderHistory();
-    renderMessages(chatId);
+    
+    try {
+        // Загружаем сообщения с сервера
+        const messages = await api.loadChatMessages(chatId);
+        state.messages.set(chatId, messages);
+        renderMessages(chatId);
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        // Показываем сообщения из кэша
+        renderMessages(chatId);
+    }
+    
     textarea.focus();
 }
 
@@ -407,7 +526,7 @@ fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 infoButton.addEventListener('click', () => openInfoView());
 
 // Инициализация
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     autoResizeTextarea();
     activateStartMode();
     
