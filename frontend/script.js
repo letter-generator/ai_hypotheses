@@ -44,15 +44,15 @@ function getOrCreateUserId() {
         localStorage.setItem('hypgen_user_id', userId);
     }
     API_CONFIG.HEADERS['X-User-ID'] = userId;
+    state.userId = userId;
     return userId;
 }
 
 // Сохранение состояния
 function saveState() {
-    // LocalStorage может хранить только строки, поэтому конвертируем Map в массив для сохранения
     const stateToSave = {
         chats: state.chats,
-        messages: Array.from(state.messages.entries()) // конвертируем Map в массив
+        messages: Array.from(state.messages.entries())
     };
 
     try {
@@ -75,14 +75,12 @@ async function loadState() {
         // Дополнительно загружаем историю с сервера
         try {
             const serverHistory = await api.loadChatHistory();
-            // Объединяем локальную и серверную историю
             const serverIds = new Set(serverHistory.map(c => c.chat_id));
             
-            // Добавляем только те чаты, которых нет на сервере
             const localOnlyChats = state.chats.filter(c => !serverIds.has(c.chat_id));
             state.chats = [...serverHistory, ...localOnlyChats];
             
-            saveState(); // Сохраняем объединённое состояние
+            saveState();
         } catch (error) {
             console.warn('Could not load server history:', error);
         }
@@ -97,7 +95,7 @@ const CONFIG = {
     textareaMaxPx: 240
 };
 
-// Mock API-слой
+// API-слой
 const api = {
     async createChat(title) {
         getOrCreateUserId();
@@ -187,6 +185,75 @@ const api = {
         
         const data = await response.json();
         return data.messages;
+    },
+
+    // Отправка отзыва на сервер
+    async submitReview(rating, text) {
+        getOrCreateUserId();
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}/reviews`, {
+            method: 'POST',
+            headers: API_CONFIG.HEADERS,
+            body: JSON.stringify({ rating, text })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to submit review');
+        }
+        
+        return await response.json();
+    },
+    
+    // Получение всех отзывов с сервера
+    async loadReviews() {
+        getOrCreateUserId();
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}/reviews`, {
+            method: 'GET',
+            headers: API_CONFIG.HEADERS
+        });
+        
+        if (!response.ok) {
+            console.error('Failed to load reviews');
+            return [];
+        }
+        
+        return await response.json();
+    },
+    
+    // Получение статистики отзывов
+    async loadReviewStats() {
+        getOrCreateUserId();
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}/reviews/stats`, {
+            method: 'GET',
+            headers: API_CONFIG.HEADERS
+        });
+        
+        if (!response.ok) {
+            console.error('Failed to load review stats');
+            return null;
+        }
+        
+        return await response.json();
+    },
+    
+    // Удаление отзыва
+    async deleteReview(reviewId) {
+        getOrCreateUserId();
+        
+        const response = await fetch(`${API_CONFIG.BASE_URL}/reviews/${reviewId}`, {
+            method: 'DELETE',
+            headers: API_CONFIG.HEADERS
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete review');
+        }
+        
+        return await response.json();
     }
 };
 
@@ -433,7 +500,7 @@ async function handleSend() {
             ts: Date.now()
         });
         
-        // Синхронизируем с сервером (загружаем все сообщения заново для гарантии)
+        // Синхронизируем с сервером
         const serverMessages = await api.loadChatMessages(chatId);
         state.messages.set(chatId, serverMessages);
         
@@ -504,6 +571,182 @@ function closeInfoView() {
     textarea.focus();
 }
 
+// Инициализация пользователя
+function initUser() {
+    getOrCreateUserId();
+    const userLabel = document.querySelector('.review-user');
+    if (userLabel) userLabel.textContent = `Пользователь_${state.userId.substring(0, 8)}`;
+}
+
+// Выбор звезд рейтинга
+function initStarRating() {
+    const stars = document.querySelectorAll('#rating-picker .star');
+    stars.forEach((star, index) => {
+        star.addEventListener('click', () => {
+            // Устанавливаем рейтинг
+            state.selectedRating = index + 1; 
+            
+            // Подсвечиваем звезды
+            stars.forEach((s, i) => {
+                s.classList.toggle('active', i <= index);
+            });
+        });
+    });
+}
+
+// Отправка отзыва
+async function handleReviewSubmit() {
+    const reviewInput = document.getElementById('review-text');
+    const text = reviewInput.value.trim();
+    
+    if (!text || state.selectedRating === 0) {
+        alert('Пожалуйста, укажите рейтинг и введите текст отзыва.');
+        return;
+    }
+
+    try {
+        // Отправляем отзыв на сервер
+        const newReview = await api.submitReview(state.selectedRating, text);
+        
+        // Добавляем отзыв в локальное состояние
+        state.reviews.unshift({
+            id: newReview.id,
+            userId: newReview.user_id,
+            rating: newReview.rating,
+            text: newReview.text,
+            created_at: newReview.created_at
+        });
+        
+        // Перерисовываем отзывы
+        await renderReviews();
+        
+        // Обновляем статистику
+        await updateReviewStats();
+        
+        // Очистка после успешной отправки
+        reviewInput.value = '';
+        state.selectedRating = 0;
+        
+        // Снимаем подсветку со звезд
+        document.querySelectorAll('#rating-picker .star').forEach(s => s.classList.remove('active'));
+        
+    } catch (error) {
+        console.error('Ошибка при отправке отзыва:', error);
+        alert('Не удалось отправить отзыв. Попробуйте ещё раз.');
+    }
+}
+
+// Рендер списка отзывов
+async function renderReviews() {
+    const list = document.querySelector('.reviews-list');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    
+    // Сортируем отзывы по дате (новые сначала)
+    const sortedReviews = [...state.reviews].sort((a, b) => 
+        new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    );
+    
+    sortedReviews.forEach(rev => {
+        const isMine = String(rev.userId) === String(state.userId);
+        const item = document.createElement('div');
+        item.className = 'review-item';
+        
+        // Форматируем дату
+        let dateStr = '';
+        if (rev.created_at) {
+            const date = new Date(rev.created_at);
+            dateStr = date.toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+        
+        // Формируем шапку отзыва
+        item.innerHTML = `
+            <div class="review-header">
+                <div class="review-user">
+                    Пользователь_${rev.userId} ${isMine ? '<span class="my-label">(Вы)</span>' : ''}
+                    ${dateStr ? `<span class="review-date">${dateStr}</span>` : ''}
+                </div>
+                ${isMine ? `<button class="delete-review-btn" onclick="deleteReview(${rev.id})" data-review-id="${rev.id}">Удалить отзыв</button>` : ''}
+            </div>
+            <div class="review-stars small">${'★'.repeat(rev.rating)}${'☆'.repeat(5-rev.rating)}</div>
+            <div class="review-body">${rev.text}</div>
+        `;
+        list.appendChild(item);
+        
+        const divider = document.createElement('div');
+        divider.className = 'review-divider';
+        list.appendChild(divider);
+    });
+}
+
+// Удаление отзыва
+window.deleteReview = async function(reviewId) {
+    if (!confirm('Вы уверены, что хотите удалить этот отзыв?')) {
+        return;
+    }
+    
+    try {
+        // Удаляем отзыв с сервера
+        await api.deleteReview(reviewId);
+        
+        // Удаляем из локального состояния
+        state.reviews = state.reviews.filter(r => r.id !== reviewId);
+        
+        // Перерисовываем отзывы
+        await renderReviews();
+        
+        // Обновляем статистику
+        await updateReviewStats();
+        
+    } catch (error) {
+        console.error('Ошибка при удалении отзыва:', error);
+        alert('Не удалось удалить отзыв.');
+    }
+};
+
+// Обновление статистики отзывов
+async function updateReviewStats() {
+    try {
+        const stats = await api.loadReviewStats();
+        
+        if (!stats) return;
+        
+        // Обновляем средний рейтинг
+        const scoreDisplay = document.querySelector('.score-main');
+        if (scoreDisplay) {
+            scoreDisplay.textContent = stats.average_rating.toFixed(1).replace('.', ',');
+        }
+        
+        // Обновляем распределение оценок
+        for (let i = 1; i <= 5; i++) {
+            const bar = document.getElementById(`bar-${i}`);
+            if (bar && stats.distribution[i] !== undefined) {
+                const percentage = stats.total_reviews > 0 ? 
+                    (stats.distribution[i] / stats.total_reviews) * 100 : 0;
+                bar.style.width = percentage + '%';
+            }
+        }
+        
+    } catch (error) {
+        console.error('Ошибка при загрузке статистики:', error);
+    }
+}
+
+// Сохранение отзывов в localStorage (резервный вариант)
+function saveReviewsToStorage() {
+    localStorage.setItem('hypgen_reviews', JSON.stringify(state.reviews));
+}
+
+function loadReviewsFromStorage() {
+    const saved = localStorage.getItem('hypgen_reviews');
+    if (saved) state.reviews = JSON.parse(saved);
+}
+
 // Привязка событий
 textarea.addEventListener('input', autoResizeTextarea);
 textarea.addEventListener('keydown', (e) => {
@@ -525,11 +768,12 @@ fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
 infoButton.addEventListener('click', () => openInfoView());
 
-// Инициализация
+// Инициализация при загрузке DOM
 document.addEventListener('DOMContentLoaded', async () => {
     autoResizeTextarea();
     activateStartMode();
     
+    // Настройка обработчиков для отзывов
     const submitBtn = document.getElementById('submit-review');
     const reviewInput = document.getElementById('review-text');
 
@@ -545,163 +789,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-});
-
-// инициализация пользователя (при загрузке страницы)
-function initUser() {
-    let id = localStorage.getItem('hypgen_user_id');
-    if (!id) {
-        id = Math.floor(1000 + Math.random() * 9000); // Порядковый номер
-        localStorage.setItem('hypgen_user_id', id);
-    }
-    state.userId = id;
-    const userLabel = document.querySelector('.review-user');
-    if (userLabel) userLabel.textContent = `Пользователь_${id}`;
-}
-
-// выбор звезд
-function initStarRating() {
-    const stars = document.querySelectorAll('#rating-picker .star');
-    stars.forEach((star, index) => {
-        star.addEventListener('click', () => {
-            // Устанавливаем рейтинг (индекс + 1, так как индекс начинается с 0)
-            state.selectedRating = index + 1; 
-            
-            // Подсвечиваем звезды
-            stars.forEach((s, i) => {
-                s.classList.toggle('active', i <= index);
-            });
-            console.log("Выбранный рейтинг:", state.selectedRating); // Для проверки в консоли
-        });
-    });
-}
-
-document.getElementById('review-text').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        handleReviewSubmit();
+    
+    // Инициализация пользователя
+    initUser();
+    initStarRating();
+    
+    // Загружаем отзывы с сервера при старте
+    try {
+        const serverReviews = await api.loadReviews();
+        state.reviews = serverReviews;
+        await renderReviews();
+        await updateReviewStats();
+    } catch (error) {
+        console.error('Ошибка при загрузке отзывов:', error);
+        // Если сервер недоступен, используем локальные данные
+        loadReviewsFromStorage();
+        renderReviews();
     }
 });
 
-// отправка отзыва
-function handleReviewSubmit() {
-    const reviewInput = document.getElementById('review-text');
-    const text = reviewInput.value.trim();
-    
-    // Проверяем именно текущее состояние
-    if (!text || state.selectedRating === 0) {
-        alert('Пожалуйста, укажите рейтинг и введите текст отзыва.');
-        return;
-    }
-
-    // Если всё ок, создаем отзыв
-    const newReview = {
-        id: Date.now(),
-        userId: state.userId,
-        rating: state.selectedRating,
-        text: text
-    };
-
-    state.reviews.push(newReview);
-    saveReviewsToStorage();
-    renderReviews();
-
-    // Очистка после успешной отправки
-    reviewInput.value = '';
-    state.selectedRating = 0;
-    
-    // Снимаем подсветку со звезд
-    document.querySelectorAll('#rating-picker .star').forEach(s => s.classList.remove('active'));
-}
-
-// рендер списка
-function renderReviews() {
-    const list = document.querySelector('.reviews-list');
-    if (!list) return;
-    
-    list.innerHTML = '';
-    state.reviews.forEach(rev => {
-        const isMine = String(rev.userId) === String(state.userId);
-        const item = document.createElement('div');
-        item.className = 'review-item';
-        
-        // Формируем шапку отзыва: Ник + (Вы) + Кнопка удаления
-        item.innerHTML = `
-            <div class="review-header">
-                <div class="review-user">
-                    Пользователь_${rev.userId} ${isMine ? '<span class="my-label">(Вы)</span>' : ''}
-                </div>
-                ${isMine ? `<button class="delete-review-btn" onclick="deleteReview(${rev.id})">Удалить отзыв</button>` : ''}
-            </div>
-            <div class="review-stars small">${'★'.repeat(rev.rating)}</div>
-            <div class="review-body">${rev.text}</div>
-        `;
-        list.appendChild(item);
-        
-        const divider = document.createElement('div');
-        divider.className = 'review-divider';
-        list.appendChild(divider);
-    });
-    
-    updateAverageScore();
-}
-
-window.deleteReview = function(id) {
-    state.reviews = state.reviews.filter(r => r.id !== id);
-    saveReviewsToStorage();
-    renderReviews();
-};
-
-// Сохранение именно отзывов
-function saveReviewsToStorage() {
-    localStorage.setItem('hypgen_reviews', JSON.stringify(state.reviews));
-}
-
-function loadReviewsFromStorage() {
-    const saved = localStorage.getItem('hypgen_reviews');
-    if (saved) state.reviews = JSON.parse(saved);
-}
-
-function updateAverageScore() {
-    const scoreDisplay = document.querySelector('.score-main');
-    if (!scoreDisplay) return;
-
-    // Если отзывов нет
-    if (state.reviews.length === 0) {
-        scoreDisplay.textContent = "0,0";
-        for (let i = 1; i <= 5; i++) {
-            const bar = document.getElementById(`bar-${i}`);
-            if (bar) bar.style.width = '0%';
-        }
-        return;
-    }
-
-    // Считаем средний балл
-    const totalScore = state.reviews.reduce((acc, r) => acc + r.rating, 0);
-    const avg = totalScore / state.reviews.length;
-    scoreDisplay.textContent = avg.toFixed(1).replace('.', ',');
-
-    // Сколько каких оценок
-    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    state.reviews.forEach(rev => {
-        distribution[rev.rating]++;
-    });
-
-    // Обновляем ширину полосок
-    for (let i = 1; i <= 5; i++) {
-        const bar = document.getElementById(`bar-${i}`);
-        if (bar) {
-            // Процент = (кол-во конкретных оценок / общее кол-во отзывов) * 100
-            const percentage = (distribution[i] / state.reviews.length) * 100;
-            bar.style.width = percentage + '%';
-        }
-    }
-}
-
+// Загрузка состояния при старте
 loadState();
 renderHistory();
 activateStartMode();
-initUser();
-initStarRating();
-loadReviewsFromStorage();
-renderReviews();
-document.querySelector('.review-send').onclick = handleReviewSubmit;
+
+// Связываем кнопку отправки отзыва
+document.querySelector('.review-send-btn').onclick = handleReviewSubmit;

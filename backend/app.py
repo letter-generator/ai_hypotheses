@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import uuid
-from models import db, User, ChatSession, Message
+from models import db, User, ChatSession, Message, Review
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -33,6 +33,128 @@ def get_or_create_user():
         db.session.commit()
     
     return user_id
+
+# Добавление отзыва
+@app.route('/api/reviews', methods=['POST'])
+def add_review():
+    try:
+        user_id = get_or_create_user()
+        data = request.json
+        
+        # Валидация данных
+        rating = data.get('rating')
+        text = data.get('text')
+        
+        if not rating or not text:
+            return jsonify({'error': 'Missing rating or text'}), 400
+        
+        if not isinstance(rating, int) or rating < 1 or rating > 5:
+            return jsonify({'error': 'Rating must be integer between 1 and 5'}), 400
+        
+        # Создаем новый отзыв
+        new_review = Review(
+            user_id=user_id,
+            rating=rating,
+            text=text.strip()
+        )
+        
+        db.session.add(new_review)
+        db.session.commit()
+        
+        return jsonify({
+            'id': new_review.id,
+            'user_id': new_review.user_id,
+            'rating': new_review.rating,
+            'text': new_review.text,
+            'created_at': new_review.created_at.isoformat()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# Получение всех отзывов
+@app.route('/api/reviews', methods=['GET'])
+def get_reviews():
+    try:
+        # Получаем все отзывы с информацией о пользователях
+        reviews = Review.query.order_by(Review.created_at.desc()).all()
+        
+        reviews_list = []
+        for review in reviews:
+            reviews_list.append({
+                'id': review.id,
+                'user_id': review.user_id,
+                'rating': review.rating,
+                'text': review.text,
+                'created_at': review.created_at.isoformat()
+            })
+        
+        return jsonify(reviews_list), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Получение статистики по отзывам
+@app.route('/api/reviews/stats', methods=['GET'])
+def get_review_stats():
+    try:
+        # Общее количество отзывов
+        total_reviews = Review.query.count()
+        
+        if total_reviews == 0:
+            return jsonify({
+                'average_rating': 0,
+                'total_reviews': 0,
+                'distribution': {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+            }), 200
+        
+        # Средний рейтинг
+        avg_result = db.session.query(db.func.avg(Review.rating)).scalar()
+        average_rating = round(float(avg_result), 1) if avg_result else 0
+        
+        # Распределение по оценкам
+        distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        for i in range(1, 6):
+            count = Review.query.filter_by(rating=i).count()
+            distribution[i] = count
+        
+        return jsonify({
+            'average_rating': average_rating,
+            'total_reviews': total_reviews,
+            'distribution': distribution
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+#Удаление отзыва (только свой)
+@app.route('/api/reviews/<int:review_id>', methods=['DELETE'])
+def delete_review(review_id):
+    try:
+        user_id = request.headers.get('X-User-ID')
+        
+        if not user_id:
+            return jsonify({'error': 'User ID required'}), 401
+        
+        # Находим отзыв
+        review = Review.query.get(review_id)
+        if not review:
+            return jsonify({'error': 'Review not found'}), 404
+        
+        # Проверяем, что пользователь удаляет свой отзыв
+        if review.user_id != user_id:
+            return jsonify({'error': 'Cannot delete other user\'s review'}), 403
+        
+        db.session.delete(review)
+        db.session.commit()
+        
+        return jsonify({'message': 'Review deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/new_chat', methods=['POST'])
 def new_chat():
