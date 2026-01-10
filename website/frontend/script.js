@@ -1,38 +1,12 @@
-// Базовые DOM-ссылки (загружаем после загрузки DOM)
 const body = document.body;
 
-// Глобальная защита от случайных перезагрузок (только для разработки)
-let preventReload = false;
-window.addEventListener('beforeunload', (e) => {
-    if (preventReload && state.ui.sending) {
-        e.preventDefault();
-        e.returnValue = 'Идёт отправка сообщения. Вы уверены, что хотите покинуть страницу?';
-        return e.returnValue;
-    }
-});
+let textarea, chatHistoryContainer, sendButton, attachButton, newChatButton;
+let historyList, fileInput, fileChipContainer, chatTitle, infoButton;
+let chatView, infoView;
 
-// Функция для безопасного поиска элементов
-function safeGetElement(selector, isId = false) {
-    const element = isId ? document.getElementById(selector) : document.querySelector(selector);
-    if (!element && document.readyState === 'loading') {
-        console.warn(`Элемент "${selector}" пока не найден (DOM ещё загружается)`);
-    }
-    return element;
+function getElement(selector, byId = false) {
+    return byId ? document.getElementById(selector) : document.querySelector(selector);
 }
-
-// Поиск элементов (будут обновлены после DOMContentLoaded)
-let textarea = safeGetElement('.chat-textarea');
-let chatHistoryContainer = safeGetElement('.chat-history-container');
-let sendButton = safeGetElement('.send-button');
-let attachButton = safeGetElement('.attach-button');
-let newChatButton = safeGetElement('new-chat-btn', true);
-let historyList = safeGetElement('.history-list');
-let fileInput = safeGetElement('file-input', true);
-let fileChipContainer = safeGetElement('.file-chip-container');
-let chatTitle = safeGetElement('.chat-title');
-let infoButton = safeGetElement('.info-button');
-let chatView = safeGetElement('.chat-view');
-let infoView = safeGetElement('.info-view');
 
 const API_CONFIG = {
     BASE_URL: 'http://localhost:5000/api',
@@ -42,10 +16,9 @@ const API_CONFIG = {
     }
 };
 
-// Глобальное состояние
 const state = {
     chats: [],
-    messages: new Map(), // chatId -> [{id, sender, text, ts, attachments?}]
+    messages: new Map(),
     currentChatId: null,
     ui: { typing: false, sending: false, infoOpen: false },
     attachments: [],
@@ -54,10 +27,8 @@ const state = {
     selectedRating: 0
 };
 
-// Ключ для локального хранилища
 const STORAGE_KEY = 'hypgen_chat_state';
 
-// Генерация/получение ID пользователя из localStorage
 function getOrCreateUserId() {
     let userId = localStorage.getItem('hypgen_user_id');
     if (!userId) {
@@ -69,46 +40,40 @@ function getOrCreateUserId() {
     return userId;
 }
 
-// Сохранение состояния
 function saveState() {
-    const stateToSave = {
-        chats: state.chats,
-        messages: Array.from(state.messages.entries())
-    };
-
     try {
+        const stateToSave = {
+            chats: state.chats,
+            messages: Array.from(state.messages.entries())
+        };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     } catch (e) {
-        console.error("Ошибка сохранения в LocalStorage:", e);
+        console.error("Ошибка сохранения:", e);
     }
 }
 
-// Загрузка состояния
 async function loadState() {
     try {
-        const storedState = localStorage.getItem(STORAGE_KEY);
-        if (storedState) {
-            const loadedState = JSON.parse(storedState);
-            state.chats = loadedState.chats || [];
-            state.messages = new Map(loadedState.messages || []);
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const loaded = JSON.parse(stored);
+            state.chats = loaded.chats || [];
+            state.messages = new Map(loaded.messages || []);
         }
         
-        // Дополнительно загружаем историю с сервера
         try {
             const serverHistory = await api.loadChatHistory();
             const serverIds = new Set(serverHistory.map(c => c.chat_id));
-            
-            const localOnlyChats = state.chats.filter(c => !serverIds.has(c.chat_id));
-            state.chats = [...serverHistory, ...localOnlyChats];
-            
+            const localOnly = state.chats.filter(c => !serverIds.has(c.chat_id));
+            state.chats = [...serverHistory, ...localOnly];
             saveState();
         } catch (error) {
-            console.warn('Could not load server history:', error);
+            console.warn('Не удалось загрузить историю с сервера');
         }
         
         renderHistory();
     } catch (e) {
-        console.error("Ошибка загрузки из LocalStorage:", e);
+        console.error("Ошибка загрузки:", e);
     }
 }
 
@@ -116,7 +81,6 @@ const CONFIG = {
     textareaMaxPx: 240
 };
 
-// API-слой
 const api = {
     async createChat(title) {
         getOrCreateUserId();
@@ -133,7 +97,6 @@ const api = {
         
         const data = await response.json();
         
-        // Сохраняем в локальное состояние
         const newChat = { chat_id: data.chat_id, title: data.title };
         state.chats.unshift(newChat);
         saveState();
@@ -210,12 +173,10 @@ const api = {
             return data.messages || [];
         } catch (error) {
             console.error('Error loading chat messages:', error);
-            // Возвращаем пустой массив вместо выбрасывания ошибки, если сообщения есть в кэше
             return state.messages.get(chatId) || [];
         }
     },
 
-    // Отправка отзыва на сервер
     async submitReview(rating, text) {
         getOrCreateUserId();
         
@@ -233,7 +194,6 @@ const api = {
         return await response.json();
     },
     
-    // Получение всех отзывов с сервера
     async loadReviews() {
         getOrCreateUserId();
         
@@ -250,7 +210,6 @@ const api = {
         return await response.json();
     },
     
-    // Получение статистики отзывов
     async loadReviewStats() {
         getOrCreateUserId();
         
@@ -267,7 +226,6 @@ const api = {
         return await response.json();
     },
     
-    // Удаление отзыва
     async deleteReview(reviewId) {
         getOrCreateUserId();
         
@@ -285,7 +243,6 @@ const api = {
     }
 };
 
-// Утилиты
 function delay(ms) {
     return new Promise(res => setTimeout(res, ms));
 }
@@ -311,7 +268,6 @@ function scrollToBottom() {
     });
 }
 
-// Рендер сообщений
 function renderMessages(chatId) {
     chatHistoryContainer.innerHTML = '';
     const fragment = document.createDocumentFragment();
@@ -366,7 +322,6 @@ function renderMessages(chatId) {
     scrollToBottom();
 }
 
-// Рендер истории
 function renderHistory() {
     historyList.innerHTML = '';
     const fragment = document.createDocumentFragment();
@@ -397,7 +352,6 @@ function truncateTitle(title) {
     return (lastSpace > 0 ? temp.slice(0, lastSpace) : temp) + '...';
 }
 
-// Рендер файловых чипов
 function renderFileChips() {
     fileChipContainer.innerHTML = '';
     if (!state.attachments.length) {
@@ -428,7 +382,6 @@ function renderFileChips() {
     });
 }
 
-// Управление режимами
 function activateChatMode() {
     body.classList.add('chat-active');
     closeInfoView();
@@ -451,7 +404,6 @@ function activateStartMode() {
     closeInfoView();
 }
 
-// Сервисные функции
 function upsertChat(chat) {
     const exists = state.chats.find(c => c.chat_id === chat.chat_id);
     if (!exists) {
@@ -465,31 +417,19 @@ function pushMessage(chatId, message) {
     state.messages.set(chatId, list);
 }
 
-// Обработчики
 async function handleSend(e) {
-    // ЖЁСТКАЯ блокировка перезагрузки страницы
     if (e) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
     }
     
-    if (state.ui.sending) {
-        console.warn('Отправка уже выполняется, игнорируем повторный запрос');
-        return false;
-    }
-
-    if (!textarea) {
-        console.error('❌ Textarea не найдена, невозможно отправить сообщение');
-        return false;
-    }
+    if (state.ui.sending) return false;
+    if (!textarea) return false;
 
     const text = textarea.value.trim();
     const files = [...state.attachments];
-    if (!text && !files.length) {
-        console.warn('⚠️ Пустое сообщение, пропускаем отправку');
-        return false;
-    }
+    if (!text && !files.length) return false;
 
     const attachmentsPayload = files.map(f => ({
         name: f.name,
@@ -513,7 +453,7 @@ async function handleSend(e) {
             activateChatMode();
             renderHistory();
         } catch (error) {
-            console.error('❌ Ошибка создания чата:', error);
+            console.error('Ошибка создания чата:', error);
             state.ui.sending = false;
             return false;
         }
@@ -521,7 +461,6 @@ async function handleSend(e) {
 
     const chatId = state.currentChatId;
     
-    // Локальное сохранение сообщения пользователя
     pushMessage(chatId, {
         id: 'temp_' + Date.now(),
         sender: 'user',
@@ -538,7 +477,6 @@ async function handleSend(e) {
         const resp = await api.sendMessage({ chatId, text, files });
         state.ui.typing = false;
         
-        // Сохраняем ответ AI
         pushMessage(chatId, {
             id: resp.messageId || crypto.randomUUID(),
             sender: 'ai',
@@ -546,15 +484,12 @@ async function handleSend(e) {
             ts: Date.now()
         });
         
-        // Пытаемся синхронизировать с сервером (но не критично, если не получится)
         try {
             const serverMessages = await api.loadChatMessages(chatId);
             if (serverMessages && serverMessages.length > 0) {
                 state.messages.set(chatId, serverMessages);
             }
         } catch (syncError) {
-            console.warn('Не удалось синхронизировать сообщения с сервером, используем локальные данные:', syncError);
-            // Используем локальные сообщения, которые уже есть
         }
         
         renderMessages(chatId);
@@ -565,18 +500,15 @@ async function handleSend(e) {
         pushMessage(chatId, {
             id: 'error_' + Date.now(),
             sender: 'ai',
-            text: 'Ошибка отправки. Проверьте, запущен ли сервер (http://localhost:5000) и попробуйте ещё раз.',
+            text: 'Ошибка отправки. Попробуйте ещё раз.',
             ts: Date.now()
         });
         renderMessages(chatId);
     } finally {
         state.ui.sending = false;
-        if (textarea) {
-            textarea.focus();
-        }
+        textarea.focus();
     }
     
-    // Всегда возвращаем false, чтобы предотвратить любые действия браузера по умолчанию
     return false;
 }
 
@@ -592,13 +524,11 @@ async function onHistoryClick(e) {
     renderHistory();
     
     try {
-        // Загружаем сообщения с сервера
         const messages = await api.loadChatMessages(chatId);
         state.messages.set(chatId, messages);
         renderMessages(chatId);
     } catch (error) {
-        console.error('Error loading messages:', error);
-        // Показываем сообщения из кэша
+        console.error('Ошибка загрузки сообщений:', error);
         renderMessages(chatId);
     }
     
@@ -613,7 +543,6 @@ function handleFiles(files) {
     renderFileChips();
 }
 
-// Инфо-вид
 function openInfoView() {
     state.ui.infoOpen = true;
     chatView.setAttribute('aria-hidden', 'true');
@@ -629,22 +558,17 @@ function closeInfoView() {
     textarea.focus();
 }
 
-// Инициализация пользователя
 function initUser() {
     getOrCreateUserId();
     const userLabel = document.querySelector('.review-user');
     if (userLabel) userLabel.textContent = `Пользователь_${state.userId.substring(0, 8)}`;
 }
 
-// Выбор звезд рейтинга
 function initStarRating() {
     const stars = document.querySelectorAll('#rating-picker .star');
     stars.forEach((star, index) => {
         star.addEventListener('click', () => {
-            // Устанавливаем рейтинг
-            state.selectedRating = index + 1; 
-            
-            // Подсвечиваем звезды
+            state.selectedRating = index + 1;
             stars.forEach((s, i) => {
                 s.classList.toggle('active', i <= index);
             });
@@ -652,9 +576,7 @@ function initStarRating() {
     });
 }
 
-// Отправка отзыва
 async function handleReviewSubmit(e) {
-    // ЖЁСТКАЯ блокировка перезагрузки страницы
     if (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -662,23 +584,16 @@ async function handleReviewSubmit(e) {
     }
     
     const reviewInput = document.getElementById('review-text');
-    if (!reviewInput) {
-        console.error('Поле ввода отзыва не найдено!');
-        return false;
-    }
+    if (!reviewInput) return false;
     
     const text = reviewInput.value.trim();
-    
     if (!text || state.selectedRating === 0) {
         alert('Пожалуйста, укажите рейтинг и введите текст отзыва.');
         return false;
     }
 
     try {
-        // Отправляем отзыв на сервер
         const newReview = await api.submitReview(state.selectedRating, text);
-        
-        // Добавляем отзыв в локальное состояние
         state.reviews.unshift({
             id: newReview.id,
             userId: newReview.user_id,
@@ -687,33 +602,27 @@ async function handleReviewSubmit(e) {
             created_at: newReview.created_at
         });
         
-        // Перерисовываем отзывы
         await renderReviews();
-        
-        // Обновляем статистику
         await updateReviewStats();
         
-        // Очистка после успешной отправки
         reviewInput.value = '';
         state.selectedRating = 0;
-        
-        // Снимаем подсветку со звезд
         document.querySelectorAll('#rating-picker .star').forEach(s => s.classList.remove('active'));
         
     } catch (error) {
         console.error('Ошибка при отправке отзыва:', error);
         alert('Не удалось отправить отзыв. Попробуйте ещё раз.');
     }
+    
+    return false;
 }
 
-// Рендер списка отзывов
 async function renderReviews() {
     const list = document.querySelector('.reviews-list');
     if (!list) return;
     
     list.innerHTML = '';
     
-    // Сортируем отзывы по дате (новые сначала)
     const sortedReviews = [...state.reviews].sort((a, b) => 
         new Date(b.created_at || 0) - new Date(a.created_at || 0)
     );
@@ -723,7 +632,6 @@ async function renderReviews() {
         const item = document.createElement('div');
         item.className = 'review-item';
         
-        // Форматируем дату
         let dateStr = '';
         if (rev.created_at) {
             const date = new Date(rev.created_at);
@@ -734,7 +642,6 @@ async function renderReviews() {
             });
         }
         
-        // Формируем шапку отзыва
         item.innerHTML = `
             <div class="review-header">
                 <div class="review-user">
@@ -754,45 +661,32 @@ async function renderReviews() {
     });
 }
 
-// Удаление отзыва
 window.deleteReview = async function(reviewId) {
     if (!confirm('Вы уверены, что хотите удалить этот отзыв?')) {
         return;
     }
     
     try {
-        // Удаляем отзыв с сервера
         await api.deleteReview(reviewId);
-        
-        // Удаляем из локального состояния
         state.reviews = state.reviews.filter(r => r.id !== reviewId);
-        
-        // Перерисовываем отзывы
         await renderReviews();
-        
-        // Обновляем статистику
         await updateReviewStats();
-        
     } catch (error) {
         console.error('Ошибка при удалении отзыва:', error);
         alert('Не удалось удалить отзыв.');
     }
 };
 
-// Обновление статистики отзывов
 async function updateReviewStats() {
     try {
         const stats = await api.loadReviewStats();
-        
         if (!stats) return;
         
-        // Обновляем средний рейтинг
         const scoreDisplay = document.querySelector('.score-main');
         if (scoreDisplay) {
             scoreDisplay.textContent = stats.average_rating.toFixed(1).replace('.', ',');
         }
         
-        // Обновляем распределение оценок
         for (let i = 1; i <= 5; i++) {
             const bar = document.getElementById(`bar-${i}`);
             if (bar && stats.distribution[i] !== undefined) {
@@ -801,13 +695,11 @@ async function updateReviewStats() {
                 bar.style.width = percentage + '%';
             }
         }
-        
     } catch (error) {
         console.error('Ошибка при загрузке статистики:', error);
     }
 }
 
-// Сохранение отзывов в localStorage (резервный вариант)
 function saveReviewsToStorage() {
     localStorage.setItem('hypgen_reviews', JSON.stringify(state.reviews));
 }
@@ -817,80 +709,52 @@ function loadReviewsFromStorage() {
     if (saved) state.reviews = JSON.parse(saved);
 }
 
-// Инициализация при загрузке DOM
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM загружен, инициализация...');
+    textarea = getElement('.chat-textarea');
+    chatHistoryContainer = getElement('.chat-history-container');
+    sendButton = document.querySelector('.send-button:not(.review-send-btn)');
+    attachButton = getElement('.attach-button');
+    newChatButton = getElement('new-chat-btn', true);
+    historyList = getElement('.history-list');
+    fileInput = getElement('file-input', true);
+    fileChipContainer = getElement('.file-chip-container');
+    chatTitle = getElement('.chat-title');
+    infoButton = getElement('.info-button');
+    chatView = getElement('.chat-view');
+    infoView = getElement('.info-view');
     
-    // Переинициализируем элементы после загрузки DOM
-    textarea = safeGetElement('.chat-textarea');
-    chatHistoryContainer = safeGetElement('.chat-history-container');
-    sendButton = safeGetElement('.send-button:not(.review-send-btn)'); // Исключаем кнопку отзывов
-    attachButton = safeGetElement('.attach-button');
-    newChatButton = safeGetElement('new-chat-btn', true);
-    historyList = safeGetElement('.history-list');
-    fileInput = safeGetElement('file-input', true);
-    fileChipContainer = safeGetElement('.file-chip-container');
-    chatTitle = safeGetElement('.chat-title');
-    infoButton = safeGetElement('.info-button');
-    chatView = safeGetElement('.chat-view');
-    infoView = safeGetElement('.info-view');
-    
-    // Диагностика: проверяем все найденные элементы
-    console.log('📋 Найденные элементы:', {
-        textarea: !!textarea,
-        sendButton: !!sendButton,
-        newChatButton: !!newChatButton,
-        attachButton: !!attachButton,
-        fileInput: !!fileInput,
-        infoButton: !!infoButton
-    });
-    
-    // Привязка событий для чата (с жёсткой блокировкой перезагрузки)
     if (textarea) {
         textarea.addEventListener('input', autoResizeTextarea);
         textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
                 handleSend(e);
             }
         }, { passive: false });
-    } else {
-        console.error('Элемент textarea не найден!');
     }
 
     if (sendButton) {
         sendButton.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
             handleSend(e);
         }, { passive: false, capture: true });
-    } else {
-        console.error('Кнопка отправки (sendButton) не найдена!');
     }
 
     if (newChatButton) {
         newChatButton.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
             activateStartMode();
         }, { passive: false, capture: true });
-    } else {
-        console.error('Кнопка "Новый чат" (newChatButton) не найдена! Проверь id="new-chat-btn" в HTML');
     }
 
     if (attachButton && fileInput) {
         attachButton.addEventListener('click', (e) => {
             e.preventDefault();
-            e.stopPropagation();
             fileInput.click();
         }, { passive: false });
-    } else {
-        if (!attachButton) console.warn('Кнопка прикрепления файла не найдена');
-        if (!fileInput) console.warn('Input для файлов не найден');
     }
 
     if (fileInput) {
@@ -900,48 +764,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (infoButton) {
         infoButton.addEventListener('click', (e) => {
             e.preventDefault();
-            e.stopPropagation();
             openInfoView();
         }, { passive: false });
-    } else {
-        console.warn('Кнопка информации не найдена');
     }
     
     autoResizeTextarea();
     activateStartMode();
     
-    // Настройка обработчиков для отзывов
     const submitBtn = document.getElementById('submit-review');
     const reviewInput = document.getElementById('review-text');
 
     if (submitBtn) {
-        // Используем addEventListener вместо onclick для лучшего контроля
         submitBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             handleReviewSubmit(e);
         }, { passive: false });
-    } else {
-        console.warn('Кнопка отправки отзыва (submit-review) не найдена!');
     }
 
     if (reviewInput) {
         reviewInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                e.stopPropagation();
                 handleReviewSubmit(e);
             }
         }, { passive: false });
-    } else {
-        console.warn('Поле ввода отзыва (review-text) не найдено!');
     }
     
-    // Инициализация пользователя
     initUser();
     initStarRating();
     
-    // Загружаем отзывы с сервера при старте
     try {
         const serverReviews = await api.loadReviews();
         state.reviews = serverReviews;
@@ -949,13 +801,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await updateReviewStats();
     } catch (error) {
         console.error('Ошибка при загрузке отзывов:', error);
-        // Если сервер недоступен, используем локальные данные
         loadReviewsFromStorage();
         renderReviews();
     }
 });
 
-// Загрузка состояния при старте
 loadState();
 renderHistory();
 activateStartMode();

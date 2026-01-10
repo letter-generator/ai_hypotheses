@@ -9,23 +9,17 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chatbot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_TYPE'] = 'filesystem'
 
-# Инициализация БД
 db.init_app(app)
-
-# CORS для связи с фронтендом
 CORS(app, origins=["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:3000", "http://127.0.0.1:3000"], supports_credentials=True)
 
-# Создание таблиц
 with app.app_context():
     db.create_all()
 
-# Генерация/получение ID пользователя
 def get_or_create_user():
     user_id = request.headers.get('X-User-ID')
     if not user_id:
         user_id = str(uuid.uuid4())
     
-    # Проверяем существование пользователя в БД
     user = User.query.get(user_id)
     if not user:
         user = User(id=user_id)
@@ -34,14 +28,11 @@ def get_or_create_user():
     
     return user_id
 
-# Добавление отзыва
 @app.route('/api/reviews', methods=['POST'])
 def add_review():
     try:
         user_id = get_or_create_user()
         data = request.json
-        
-        # Валидация данных
         rating = data.get('rating')
         text = data.get('text')
         
@@ -51,7 +42,6 @@ def add_review():
         if not isinstance(rating, int) or rating < 1 or rating > 5:
             return jsonify({'error': 'Rating must be integer between 1 and 5'}), 400
         
-        # Создаем новый отзыв
         new_review = Review(
             user_id=user_id,
             rating=rating,
@@ -73,13 +63,10 @@ def add_review():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# Получение всех отзывов
 @app.route('/api/reviews', methods=['GET'])
 def get_reviews():
     try:
-        # Получаем все отзывы с информацией о пользователях
         reviews = Review.query.order_by(Review.created_at.desc()).all()
-        
         reviews_list = []
         for review in reviews:
             reviews_list.append({
@@ -95,11 +82,9 @@ def get_reviews():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Получение статистики по отзывам
 @app.route('/api/reviews/stats', methods=['GET'])
 def get_review_stats():
     try:
-        # Общее количество отзывов
         total_reviews = Review.query.count()
         
         if total_reviews == 0:
@@ -109,11 +94,9 @@ def get_review_stats():
                 'distribution': {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
             }), 200
         
-        # Средний рейтинг
         avg_result = db.session.query(db.func.avg(Review.rating)).scalar()
         average_rating = round(float(avg_result), 1) if avg_result else 0
         
-        # Распределение по оценкам
         distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
         for i in range(1, 6):
             count = Review.query.filter_by(rating=i).count()
@@ -128,21 +111,17 @@ def get_review_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-#Удаление отзыва (только свой)
 @app.route('/api/reviews/<int:review_id>', methods=['DELETE'])
 def delete_review(review_id):
     try:
         user_id = request.headers.get('X-User-ID')
-        
         if not user_id:
             return jsonify({'error': 'User ID required'}), 401
         
-        # Находим отзыв
         review = Review.query.get(review_id)
         if not review:
             return jsonify({'error': 'Review not found'}), 404
         
-        # Проверяем, что пользователь удаляет свой отзыв
         if review.user_id != user_id:
             return jsonify({'error': 'Cannot delete other user\'s review'}), 403
         
@@ -162,7 +141,6 @@ def new_chat():
         user_id = get_or_create_user()
         data = request.json
         
-        # Создаем новую сессию чата
         title = data.get('title', 'Новый чат')
         new_chat = ChatSession(user_id=user_id, title=title)
         db.session.add(new_chat)
@@ -188,12 +166,10 @@ def send_message():
         if not chat_id or not message:
             return jsonify({'error': 'Missing chat_id or message'}), 400
         
-        # Проверяем существование чата
         chat = ChatSession.query.filter_by(id=chat_id, user_id=user_id).first()
         if not chat:
             return jsonify({'error': 'Chat not found or access denied'}), 404
         
-        # Сохраняем сообщение пользователя
         user_message = Message(
             chat_id=chat_id, 
             content=message, 
@@ -202,20 +178,17 @@ def send_message():
         )
         db.session.add(user_message)
         
-        # Обновляем заголовок чата (если это первое сообщение)
         if len(chat.messages) == 0:
             chat.title = message[:50] + "..." if len(message) > 50 else message
             db.session.add(chat)
         
-        db.session.flush()  # Получаем ID сообщения
+        db.session.flush()
         
-        # Генерируем ответ бота (заглушка, позже подключите RAG)
         bot_response = f"Это ответ AI на сообщение: '{message}'"
         if attachments:
             file_names = ', '.join([att.get('name', '') for att in attachments])
             bot_response += f"\nПрикреплённые файлы: {file_names}"
         
-        # Сохраняем ответ бота
         bot_message = Message(
             chat_id=chat_id, 
             content=bot_response, 
@@ -253,14 +226,10 @@ def get_chat_history():
         if not user_id:
             return jsonify([])
         
-        # Получаем все чаты пользователя
         chats = ChatSession.query.filter_by(user_id=user_id).order_by(ChatSession.created_at.desc()).all()
-        
         chat_list = []
         for chat in chats:
-            # Получаем последнее сообщение для превью
             last_message = Message.query.filter_by(chat_id=chat.id).order_by(Message.created_at.desc()).first()
-            
             chat_list.append({
                 'chat_id': chat.id,
                 'title': chat.title,
@@ -277,15 +246,11 @@ def get_chat_history():
 def get_chat_messages(chat_id):
     try:
         user_id = request.headers.get('X-User-ID')
-        
-        # Проверяем доступ к чату
         chat = ChatSession.query.filter_by(id=chat_id, user_id=user_id).first()
         if not chat:
             return jsonify({'error': 'Chat not found or access denied'}), 404
         
-        # Получаем все сообщения конкретного чата
         messages = Message.query.filter_by(chat_id=chat_id).order_by(Message.created_at).all()
-        
         message_list = []
         for msg in messages:
             message_list.append({
