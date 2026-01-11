@@ -16,6 +16,12 @@ const API_CONFIG = {
     }
 };
 
+const MODES = {
+    CHOICE: 'choice',
+    QUESTION: 'question',
+    HYPOTHESIS: 'hypothesis'
+};
+
 const state = {
     chats: [],
     messages: new Map(),
@@ -24,31 +30,28 @@ const state = {
     attachments: [],
     reviews: [],
     userId: null,
-    selectedRating: 0
+    selectedRating: 0,
+    chatMode: null
 };
 
 const STORAGE_KEY = 'hypgen_chat_state';
 
-// Функция для форматирования Markdown в HTML с использованием marked.js
 function formatMarkdownToHTML(text) {
     if (!text) return '';
     
     try {
-        // Настройки для marked.js
         marked.setOptions({
-            breaks: true,          // Переносы строк как <br>
-            gfm: true,             // GitHub Flavored Markdown
-            headerIds: false,      // Не добавлять id к заголовкам
-            mangle: false,         // Не кодировать email-адреса
-            sanitize: false,       // Не очищать HTML (мы доверяем контенту)
-            smartypants: true      // Умные кавычки, тире и т.д.
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false,
+            sanitize: false,
+            smartypants: true
         });
         
-        // Парсим Markdown в HTML
         return marked.parse(text);
     } catch (e) {
         console.error('Ошибка форматирования Markdown:', e);
-        // В случае ошибки возвращаем текст как есть
         return text.replace(/\n/g, '<br>');
     }
 }
@@ -155,7 +158,9 @@ const api = {
         const data = await response.json();
         return { 
             text: data.bot_response.content,
-            messageId: data.bot_response.id
+            messageId: data.bot_response.id,
+            mode: data.mode,
+            chat_title: data.chat_title
         };
     },
 
@@ -323,12 +328,9 @@ function renderMessages(chatId) {
         const textEl = document.createElement('div');
         textEl.className = 'message-text';
         
-        // Форматируем текст в зависимости от отправителя
         if (msg.sender === 'ai') {
-            // Для AI используем Markdown форматирование
             textEl.innerHTML = formatMarkdownToHTML(msg.text);
         } else {
-            // Для пользователя просто текст (без HTML)
             textEl.textContent = msg.text;
             textEl.style.whiteSpace = 'pre-wrap';
         }
@@ -427,6 +429,7 @@ function activateStartMode() {
     state.ui.typing = false;
     state.ui.sending = false;
     state.attachments = [];
+    state.chatMode = null;
     chatTitle.textContent = 'Новый чат';
     chatHistoryContainer.innerHTML = '';
     fileInput.value = '';
@@ -480,12 +483,21 @@ async function handleSend(e) {
 
     if (!state.currentChatId) {
         try {
-            const chat = await api.createChat(text);
+            const chat = await api.createChat("Новый чат");
             state.currentChatId = chat.chat_id;
             chatTitle.textContent = chat.title;
             upsertChat(chat);
             activateChatMode();
             renderHistory();
+            
+            pushMessage(state.currentChatId, {
+                id: 'welcome_' + Date.now(),
+                sender: 'ai',
+                text: 'Привет! Я ваш помощник для научных исследований.\n\n**Вы хотите задать вопрос или сгенерировать гипотезу?**\n\nПожалуйста, ответьте:\n- "вопрос" - для получения ответов на вопросы\n- "гипотеза" - для генерации научных гипотез',
+                ts: Date.now()
+            });
+            renderMessages(state.currentChatId);
+            
         } catch (error) {
             console.error('Ошибка создания чата:', error);
             state.ui.sending = false;
@@ -511,6 +523,18 @@ async function handleSend(e) {
         const resp = await api.sendMessage({ chatId, text, files });
         state.ui.typing = false;
         
+        if (resp.mode) {
+            state.chatMode = resp.mode;
+        }
+        
+        if (resp.chat_title && state.currentChatId && resp.chat_title !== "Новый чат") {
+            const chatIndex = state.chats.findIndex(c => c.chat_id === state.currentChatId);
+            if (chatIndex !== -1) {
+                state.chats[chatIndex].title = resp.chat_title;
+                chatTitle.textContent = truncateTitle(resp.chat_title);
+            }
+        }
+        
         pushMessage(chatId, {
             id: resp.messageId || crypto.randomUUID(),
             sender: 'ai',
@@ -522,11 +546,27 @@ async function handleSend(e) {
             const serverMessages = await api.loadChatMessages(chatId);
             if (serverMessages && serverMessages.length > 0) {
                 state.messages.set(chatId, serverMessages);
+                
+                if (serverMessages.length > 0) {
+                    const firstMessages = serverMessages.slice(0, 3);
+                    for (const msg of firstMessages) {
+                        const msgLower = msg.text.toLowerCase();
+                        if (msgLower.includes('вопрос')) {
+                            state.chatMode = MODES.QUESTION;
+                            break;
+                        } else if (msgLower.includes('гипотез')) {
+                            state.chatMode = MODES.HYPOTHESIS;
+                            break;
+                        }
+                    }
+                }
             }
         } catch (syncError) {
+            console.warn('Не удалось синхронизировать сообщения:', syncError);
         }
         
         renderMessages(chatId);
+        renderHistory();
         saveState();
     } catch (err) {
         console.error('Ошибка отправки', err);
@@ -553,13 +593,33 @@ async function onHistoryClick(e) {
     
     closeInfoView();
     state.currentChatId = chatId;
-    chatTitle.textContent = truncateTitle(state.chats.find(c => c.chat_id === chatId)?.title || 'Чат');
+    state.chatMode = null;
+    
+    const chat = state.chats.find(c => c.chat_id === chatId);
+    chatTitle.textContent = truncateTitle(chat?.title || 'Чат');
     activateChatMode();
     renderHistory();
     
     try {
         const messages = await api.loadChatMessages(chatId);
         state.messages.set(chatId, messages);
+        
+        if (messages && messages.length > 0) {
+            const firstMessages = messages.slice(0, 3);
+            for (const msg of firstMessages) {
+                if (msg.sender === 'user') {
+                    const msgLower = msg.text.toLowerCase();
+                    if (msgLower.includes('вопрос')) {
+                        state.chatMode = MODES.QUESTION;
+                        break;
+                    } else if (msgLower.includes('гипотез') || msgLower.includes('генер')) {
+                        state.chatMode = MODES.HYPOTHESIS;
+                        break;
+                    }
+                }
+            }
+        }
+        
         renderMessages(chatId);
     } catch (error) {
         console.error('Ошибка загрузки сообщений:', error);
@@ -645,7 +705,7 @@ async function handleReviewSubmit(e) {
         
     } catch (error) {
         console.error('Ошибка при отправке отзыва:', error);
-        alert('Не удалось отправить отзыв. Попробуйте ещё раз.');
+        alert('Не удалось отправить отзыва. Попробуйте ещё раз.');
     }
     
     return false;
@@ -707,7 +767,7 @@ window.deleteReview = async function(reviewId) {
         await updateReviewStats();
     } catch (error) {
         console.error('Ошибка при удалении отзыва:', error);
-        alert('Не удалось удалить отзыв.');
+        alert('Не удалось удалить отзыва.');
     }
 };
 

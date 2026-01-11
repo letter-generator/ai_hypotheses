@@ -5,20 +5,18 @@ import sys
 import os
 from models import db, User, ChatSession, Message, Review
 
-# Добавляем путь для импорта rag.py
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 
-# Импортируем RAG-функции
 try:
     from rag import ask, generate_hypotheses
     RAG_AVAILABLE = True
-    print("✅ RAG система загружена")
+    print("RAG система загружена")
 except ImportError as e:
-    print(f"⚠️  Warning: RAG module not available: {e}")
+    print(f"Warning: RAG module not available: {e}")
     print("Using dummy responses instead.")
     RAG_AVAILABLE = False
 except Exception as e:
-    print(f"⚠️  Warning: Error importing RAG module: {e}")
+    print(f"Warning: Error importing RAG module: {e}")
     RAG_AVAILABLE = False
 
 app = Flask(__name__)
@@ -34,20 +32,19 @@ with app.app_context():
     db.create_all()
 
 def get_or_create_user():
-    """Получаем или создаем пользователя из заголовка запроса"""
     user_id = request.headers.get('X-User-ID')
-    print(f"🔍 Получен X-User-ID из заголовков: {user_id}")
+    print(f"Получен X-User-ID из заголовков: {user_id}")
     
     if not user_id:
         user_id = str(uuid.uuid4())
-        print(f"🆕 Создан новый user_id: {user_id}")
+        print(f"Создан новый user_id: {user_id}")
     
     user = User.query.get(user_id)
     if not user:
         user = User(id=user_id)
         db.session.add(user)
         db.session.commit()
-        print(f"✅ Создан новый пользователь в БД: {user_id}")
+        print(f"Создан новый пользователь в БД: {user_id}")
     
     return user_id
 
@@ -168,14 +165,14 @@ def new_chat():
         db.session.add(new_chat)
         db.session.commit()
         
-        print(f"💬 Создан новый чат: ID={new_chat.id}, user_id={user_id}, title={title}")
+        print(f"Создан новый чат: ID={new_chat.id}, user_id={user_id}, title={title}")
         
         return jsonify({
             'chat_id': new_chat.id,
             'title': new_chat.title
         }), 200
     except Exception as e:
-        print(f"❌ Ошибка создания чата: {e}")
+        print(f"Ошибка создания чата: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/send_message', methods=['POST'])
@@ -188,18 +185,17 @@ def send_message():
         message = data.get('message')
         attachments = data.get('attachments', [])
         
-        print(f"📨 Получено сообщение: chat_id={chat_id}, user_id={user_id}, message={message[:50]}...")
+        print(f"Получено сообщение: chat_id={chat_id}, user_id={user_id}, message={message[:50]}...")
         
         if not chat_id or not message:
             return jsonify({'error': 'Missing chat_id or message'}), 400
         
-        # Ищем чат по ID и user_id
         chat = ChatSession.query.filter_by(id=chat_id, user_id=user_id).first()
         if not chat:
-            print(f"❌ Чат не найден: chat_id={chat_id}, user_id={user_id}")
+            print(f"Чат не найден: chat_id={chat_id}, user_id={user_id}")
             return jsonify({'error': 'Chat not found or access denied'}), 404
         
-        print(f"✅ Чат найден: {chat.title}")
+        print(f"Чат найден: {chat.title}")
         
         user_message = Message(
             chat_id=chat_id, 
@@ -209,35 +205,126 @@ def send_message():
         )
         db.session.add(user_message)
         
-        # Если это первое сообщение в чате - обновляем заголовок
+        # ОБНОВЛЯЕМ ЗАГОЛОВОК ЧАТА ТОЛЬКО КОГДА ЭТО ПЕРВОЕ СООБЩЕНИЕ С ВЫБОРОМ РЕЖИМА
         if len(chat.messages) == 0:
-            chat.title = message[:50] + "..." if len(message) > 50 else message
+            # Для первого сообщения оставляем заголовок "Новый чат"
+            chat.title = "Новый чат"
             db.session.add(chat)
-            print(f"📝 Обновлен заголовок чата: {chat.title}")
+            print(f"Установлен заголовок чата: {chat.title}")
         
         db.session.flush()
         
-        # ⭐ ИСПОЛЬЗУЕМ RAG-БОТА ДЛЯ ГЕНЕРАЦИИ ОТВЕТА
         bot_response = ""
+        mode = None
+        
         try:
-            if RAG_AVAILABLE:
-                print(f"🤖 Запрос к RAG: {message[:100]}...")
-                # Получаем ответ от RAG-системы
-                bot_response = ask(message)
-                print(f"✅ Получен ответ от RAG ({len(bot_response)} символов)")
-            else:
-                # Fallback: фиктивный ответ если RAG недоступен
-                bot_response = f"Это ответ AI на сообщение: '{message}'"
-                print("⚠️  RAG недоступен, использую фиктивный ответ")
+            # Проверяем, нужно ли определять режим работы
+            if len(chat.messages) == 1:  # Это первое сообщение пользователя
+                message_lower = message.lower().strip()
+                
+                if 'вопрос' in message_lower:
+                    mode = 'question'
+                    bot_response = "Отлично! Вы выбрали режим **вопросов**. Теперь я буду отвечать на ваши вопросы на основе доступных знаний.\n\nЧто вы хотите узнать?"
+                
+                elif 'гипотез' in message_lower or 'генер' in message_lower:
+                    mode = 'hypothesis'
+                    bot_response = "Отлично! Вы выбрали режим **генерации гипотез**. Я буду анализировать проблему и предлагать научно обоснованные гипотезы.\n\nОпишите проблему или тему, по которой вы хотите сгенерировать гипотезы:"
+                
+                else:
+                    mode = 'choice'
+                    bot_response = "Вы хотите задать **вопрос** или сгенерировать **гипотезу**?\n\nПожалуйста, ответьте:\n- 'вопрос' - для получения ответов на вопросы\n- 'гипотеза' - для генерации научных гипотез"
             
-            # Добавляем информацию о файлах, если есть
+            else:
+                # Определяем режим на основе истории чата
+                # Ищем первое сообщение пользователя, чтобы определить режим
+                first_user_msg = Message.query.filter_by(
+                    chat_id=chat_id, 
+                    is_user=True
+                ).order_by(Message.created_at.asc()).first()
+                
+                if first_user_msg:
+                    first_msg_lower = first_user_msg.content.lower().strip()
+                    if 'вопрос' in first_msg_lower:
+                        mode = 'question'
+                    elif 'гипотез' in first_msg_lower or 'генер' in first_msg_lower:
+                        mode = 'hypothesis'
+                    else:
+                        # Если первое сообщение не выбор режима, то это второе сообщение (вопрос/проблема)
+                        # ОБНОВЛЯЕМ ЗАГОЛОВОК ЧАТА НА ОСНОВЕ ЭТОГО СООБЩЕНИЯ
+                        if chat.title == "Новый чат":
+                            # Обрезаем слишком длинные сообщения для заголовка
+                            title_text = first_msg_lower[:100]
+                            if len(first_msg_lower) > 100:
+                                title_text += "..."
+                            chat.title = title_text.capitalize()
+                            db.session.add(chat)
+                            print(f"Обновлен заголовок чата на основе вопроса: {chat.title}")
+                
+                # Если режим определен, обрабатываем запрос
+                if mode == 'question' and RAG_AVAILABLE:
+                    print(f"Обработка вопроса: {message[:100]}...")
+                    bot_response = ask(message)
+                    print(f"Получен ответ от RAG ({len(bot_response)} символов)")
+                    
+                    # ОБНОВЛЯЕМ ЗАГОЛОВОК ДЛЯ РЕЖИМА ВОПРОСОВ
+                    if chat.title == "Новый чат":
+                        title_text = message[:100]
+                        if len(message) > 100:
+                            title_text += "..."
+                        chat.title = title_text.capitalize()
+                        db.session.add(chat)
+                        print(f"Обновлен заголовок чата для вопроса: {chat.title}")
+                
+                elif mode == 'hypothesis' and RAG_AVAILABLE:
+                    print(f"Генерация гипотез для: {message[:100]}...")
+                    try:
+                        final_hypotheses, raw_hypotheses, docs = generate_hypotheses(message)
+                        
+                        # Форматируем ответ
+                        bot_response = f"## Сгенерированные гипотезы\n\n"
+                        bot_response += f"**Проблема:** {message}\n\n"
+                        bot_response += f"**На основе источников:**\n"
+                        for i, doc in enumerate(docs[:3], 1):
+                            bot_response += f"{i}. {doc.metadata.get('title', 'Без названия')}\n"
+                        bot_response += f"\n**Гипотезы:**\n\n{final_hypotheses}"
+                        
+                        print(f"Сгенерировано гипотез: {len(final_hypotheses)} символов")
+                        
+                        # ОБНОВЛЯЕМ ЗАГОЛОВОК ДЛЯ РЕЖИМА ГИПОТЕЗ
+                        if chat.title == "Новый чат":
+                            title_text = message[:100]
+                            if len(message) > 100:
+                                title_text += "..."
+                            chat.title = title_text.capitalize()
+                            db.session.add(chat)
+                            print(f"Обновлен заголовок чата для гипотезы: {chat.title}")
+                        
+                    except Exception as hyp_error:
+                        print(f"Ошибка генерации гипотез: {hyp_error}")
+                        bot_response = f"Извините, произошла ошибка при генерации гипотез. Попробуйте ещё раз."
+                
+                elif not RAG_AVAILABLE:
+                    bot_response = f"Это ответ AI на сообщение: '{message}'"
+                    print("RAG недоступен, использую фиктивный ответ")
+                    
+                    # ОБНОВЛЯЕМ ЗАГОЛОВОК ДЛЯ ФИКТИВНЫХ ОТВЕТОВ
+                    if chat.title == "Новый чат":
+                        title_text = message[:100]
+                        if len(message) > 100:
+                            title_text += "..."
+                        chat.title = title_text.capitalize()
+                        db.session.add(chat)
+                        print(f"Обновлен заголовок чата для фиктивного ответа: {chat.title}")
+                
+                else:
+                    bot_response = "Пожалуйста, сначала выберите режим работы. Напишите 'вопрос' или 'гипотеза'."
+            
             if attachments:
                 file_names = ', '.join([att.get('name', '') for att in attachments])
-                bot_response = f"{bot_response}\n\n📎 Прикреплённые файлы: {file_names}"
+                bot_response = f"{bot_response}\n\n Прикреплённые файлы: {file_names}"
                 
         except Exception as rag_error:
-            print(f"❌ Ошибка RAG: {rag_error}")
-            # Fallback в случае ошибки RAG
+            print(f"Ошибка RAG: {rag_error}")
             bot_response = f"Извините, произошла ошибка при обработке запроса. Пожалуйста, попробуйте ещё раз."
             if attachments:
                 file_names = ', '.join([att.get('name', '') for att in attachments])
@@ -252,7 +339,7 @@ def send_message():
         
         db.session.commit()
         
-        print(f"✅ Сообщение сохранено в БД: user_msg_id={user_message.id}, bot_msg_id={bot_message.id}")
+        print(f"Сообщение сохранено в БД: user_msg_id={user_message.id}, bot_msg_id={bot_message.id}, mode={mode}, chat_title={chat.title}")
         
         return jsonify({
             'user_message': {
@@ -268,22 +355,24 @@ def send_message():
                 'is_user': False,
                 'created_at': bot_message.created_at.isoformat()
             },
-            'chat_id': chat_id
+            'chat_id': chat_id,
+            'mode': mode,
+            'chat_title': chat.title  # Добавляем обновленный заголовок в ответ
         }), 200
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Общая ошибка в send_message: {e}")
+        print(f"Общая ошибка в send_message: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/chat_history', methods=['GET'])
 def get_chat_history():
     try:
         user_id = request.headers.get('X-User-ID')
-        print(f"📜 Получение истории чатов для user_id: {user_id}")
+        print(f"Получение истории чатов для user_id: {user_id}")
         
         if not user_id:
-            print("⚠️  user_id не указан, возвращаем пустой список")
+            print("user_id не указан, возвращаем пустой список")
             return jsonify([]), 200
         
         chats = ChatSession.query.filter_by(user_id=user_id).order_by(ChatSession.created_at.desc()).all()
@@ -298,30 +387,28 @@ def get_chat_history():
                 'last_message_time': last_message.created_at.isoformat() if last_message else None
             })
         
-        print(f"✅ Найдено {len(chat_list)} чатов для пользователя {user_id}")
+        print(f"Найдено {len(chat_list)} чатов для пользователя {user_id}")
         return jsonify(chat_list), 200
     except Exception as e:
-        print(f"❌ Ошибка получения истории: {e}")
+        print(f"Ошибка получения истории: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/chat/<int:chat_id>/messages', methods=['GET'])
 def get_chat_messages(chat_id):
     try:
         user_id = request.headers.get('X-User-ID')
-        print(f"📩 Получение сообщений чата: chat_id={chat_id}, user_id={user_id}")
+        print(f"Получение сообщений чата: chat_id={chat_id}, user_id={user_id}")
         
         if not user_id:
-            print("❌ user_id не указан в заголовках")
+            print("user_id не указан в заголовках")
             return jsonify({'error': 'User ID required in X-User-ID header'}), 401
         
-        # Проверяем существование чата и принадлежность пользователю
         chat = ChatSession.query.filter_by(id=chat_id, user_id=user_id).first()
         if not chat:
-            print(f"❌ Чат не найден или доступ запрещен: chat_id={chat_id}, user_id={user_id}")
+            print(f"Чат не найден или доступ запрещен: chat_id={chat_id}, user_id={user_id}")
             
-            # Логируем все чаты пользователя для отладки
             user_chats = ChatSession.query.filter_by(user_id=user_id).all()
-            print(f"📋 Чаты пользователя {user_id}: {[c.id for c in user_chats]}")
+            print(f"Чаты пользователя {user_id}: {[c.id for c in user_chats]}")
             
             return jsonify({'error': 'Chat not found or access denied'}), 404
         
@@ -341,15 +428,16 @@ def get_chat_messages(chat_id):
                 'attachments': attachments
             })
         
-        print(f"✅ Найдено {len(message_list)} сообщений в чате {chat_id}")
+        print(f"Найдено {len(message_list)} сообщений в чате {chat_id}")
         
         return jsonify({
             'chat_id': chat_id,
             'title': chat.title,
             'messages': message_list
         }), 200
+    
     except Exception as e:
-        print(f"❌ Ошибка получения сообщений чата: {e}")
+        print(f"Ошибка получения сообщений чата: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/rag_status', methods=['GET'])
@@ -375,7 +463,7 @@ def test_rag():
             return jsonify({
                 'success': True,
                 'test_message': test_message,
-                'response': response[:500]  # Ограничиваем длину для теста
+                'response': response[:500]
             }), 200
         except Exception as e:
             return jsonify({
@@ -418,19 +506,13 @@ def health_check():
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("🚀 Запуск Flask приложения с RAG-ботом")
-    print(f"🤖 RAG доступен: {RAG_AVAILABLE}")
+    print("Запуск Flask приложения с RAG-ботом")
+    print(f"RAG доступен: {RAG_AVAILABLE}")
     print("=" * 50)
     
-    # Проверяем доступность RAG при запуске
     if RAG_AVAILABLE:
-        print("✅ RAG система готова к работе")
+        print("RAG система готова к работе")
     else:
-        print("⚠️  RAG система не доступна, будут использоваться фиктивные ответы")
-        print("   Убедитесь, что:")
-        print("   1. Файл rag.py существует")
-        print("   2. Все зависимости установлены (pip install -r requirements.txt)")
-        print("   3. FAISS индекс находится в папке faiss_index/")
-        print("   4. Токен GigaChat настроен в settings/config.py")
+        print("RAG система не доступна, будут использоваться фиктивные ответы")
     
     app.run(debug=True, port=5000)

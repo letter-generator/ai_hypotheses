@@ -826,159 +826,49 @@ body:not(.chat-active) .chat-input-area {
     color: var(--text-secondary);
 }
 
-.ai-message .message-text {
-    font-size: 15px;
-    line-height: 1.5;
-    color: #333;
+.ai-message .message-text ol li::before {
+    content: none; /* Убираем псевдоэлемент */
 }
 
-.ai-message .message-text h1,
-.ai-message .message-text h2,
-.ai-message .message-text h3,
-.ai-message .message-text h4 {
-    margin: 1.2em 0 0.6em 0;
-    font-weight: 600;
-    color: #222;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eee;
-}
-
-.ai-message .message-text h1 { 
-    font-size: 1.5em; 
-    color: #AE58CA;
-    border-bottom: 2px solid #AE58CA;
-}
-.ai-message .message-text h2 { font-size: 1.3em; }
-.ai-message .message-text h3 { font-size: 1.2em; }
-.ai-message .message-text h4 { font-size: 1.1em; }
-
-.ai-message .message-text strong {
-    font-weight: 700;
-    color: #000;
-}
-
-.ai-message .message-text em {
-    font-style: italic;
-    color: #555;
-}
-
-.ai-message .message-text p {
-    margin: 0.8em 0;
-    line-height: 1.6;
-}
-
-.ai-message .message-text ul,
+/* Правильные стили для нумерованных списков */
 .ai-message .message-text ol {
-    margin: 0.8em 0;
-    padding-left: 1.5em;
+    counter-reset: list-counter;
+    list-style-type: decimal;
+    margin-left: 1.5em;
 }
 
-.ai-message .message-text li {
+.ai-message .message-text ol li {
+    list-style-type: decimal;
+    display: list-item;
     margin-bottom: 0.5em;
     line-height: 1.5;
-    position: relative;
+    position: static; /* Убираем position: relative */
+    padding-left: 0; /* Убираем padding */
 }
 
-.ai-message .message-text ul li::before {
+/* Убираем все псевдоэлементы для нумерованных списков */
+.ai-message .message-text ol li:before {
+    display: none;
+}
+
+/* Упрощенные стили для маркированных списков */
+.ai-message .message-text ul {
+    list-style-type: none;
+    margin-left: 1.5em;
+}
+
+.ai-message .message-text ul li {
+    position: relative;
+    margin-bottom: 0.5em;
+    padding-left: 1.2em;
+    line-height: 1.5;
+}
+
+.ai-message .message-text ul li:before {
     content: "•";
     color: #AE58CA;
     font-size: 1.2em;
     position: absolute;
-    left: -1em;
-}
-
-.ai-message .message-text ol {
-    counter-reset: list-counter;
-}
-
-.ai-message .message-text ol li {
-    counter-increment: list-counter;
-}
-
-.ai-message .message-text ol li::before {
-    content: counter(list-counter) ".";
-    color: #AE58CA;
-    font-weight: 600;
-    position: absolute;
-    left: -1.5em;
-}
-
-.ai-message .message-text blockquote {
-    border-left: 3px solid #AE58CA;
-    margin: 1em 0;
-    padding: 0.5em 0 0.5em 1em;
-    color: #555;
-    background-color: rgba(174, 88, 202, 0.05);
-    font-style: italic;
-}
-
-.ai-message .message-text hr {
-    border: 0;
-    height: 1px;
-    background: linear-gradient(to right, transparent, #AE58CA, transparent);
-    margin: 1.5em 0;
-}
-
-.ai-message .message-text code {
-    background-color: #f5f5f5;
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9em;
-    color: #d63384;
-}
-
-.ai-message .message-text pre {
-    background-color: #f5f5f5;
-    padding: 1em;
-    border-radius: 5px;
-    overflow-x: auto;
-    margin: 1em 0;
-    border: 1px solid #e0e0e0;
-}
-
-.ai-message .message-text pre code {
-    background-color: transparent;
-    padding: 0;
-    border-radius: 0;
-    color: inherit;
-}
-
-.ai-message .message-text a {
-    color: #AE58CA;
-    text-decoration: none;
-    border-bottom: 1px dotted #AE58CA;
-}
-
-.ai-message .message-text a:hover {
-    color: #9245a8;
-    border-bottom: 1px solid #9245a8;
-}
-
-/* Для разделителей "—" в тексте */
-.ai-message .message-text .markdown-divider {
-    display: block;
-    text-align: center;
-    margin: 1.5em 0;
-    color: #AE58CA;
-    font-size: 1.2em;
-    letter-spacing: 2px;
-}
-
-/* Убираем отступы у первого и последнего элементов */
-.ai-message .message-text > :first-child {
-    margin-top: 0;
-}
-
-.ai-message .message-text > :last-child {
-    margin-bottom: 0;
-}
-
-/* Стили для пользовательских сообщений (без форматирования) */
-.user-message .message-text {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-size: 15px;
-    line-height: 1.5;
-    margin: 0;
+    left: 0;
+    top: 0;
 }
