@@ -29,6 +29,30 @@ const state = {
 
 const STORAGE_KEY = 'hypgen_chat_state';
 
+// Функция для форматирования Markdown в HTML с использованием marked.js
+function formatMarkdownToHTML(text) {
+    if (!text) return '';
+    
+    try {
+        // Настройки для marked.js
+        marked.setOptions({
+            breaks: true,          // Переносы строк как <br>
+            gfm: true,             // GitHub Flavored Markdown
+            headerIds: false,      // Не добавлять id к заголовкам
+            mangle: false,         // Не кодировать email-адреса
+            sanitize: false,       // Не очищать HTML (мы доверяем контенту)
+            smartypants: true      // Умные кавычки, тире и т.д.
+        });
+        
+        // Парсим Markdown в HTML
+        return marked.parse(text);
+    } catch (e) {
+        console.error('Ошибка форматирования Markdown:', e);
+        // В случае ошибки возвращаем текст как есть
+        return text.replace(/\n/g, '<br>');
+    }
+}
+
 function getOrCreateUserId() {
     let userId = localStorage.getItem('hypgen_user_id');
     if (!userId) {
@@ -296,9 +320,19 @@ function renderMessages(chatId) {
             parts.push(attachBlock);
         }
 
-        const textEl = document.createElement('p');
+        const textEl = document.createElement('div');
         textEl.className = 'message-text';
-        textEl.textContent = msg.text;
+        
+        // Форматируем текст в зависимости от отправителя
+        if (msg.sender === 'ai') {
+            // Для AI используем Markdown форматирование
+            textEl.innerHTML = formatMarkdownToHTML(msg.text);
+        } else {
+            // Для пользователя просто текст (без HTML)
+            textEl.textContent = msg.text;
+            textEl.style.whiteSpace = 'pre-wrap';
+        }
+        
         parts.push(textEl);
 
         parts.forEach(el => messageDiv.appendChild(el));
