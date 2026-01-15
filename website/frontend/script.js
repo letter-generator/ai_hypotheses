@@ -419,8 +419,13 @@ function renderFileChips() {
 }
 
 function activateChatMode() {
+    console.log('Активация режима чата, currentChatId:', state.currentChatId);
     body.classList.add('chat-active');
     closeInfoView();
+    // Убеждаемся, что режим чата действительно активен
+    if (!body.classList.contains('chat-active')) {
+        console.warn('Не удалось активировать режим чата');
+    }
 }
 
 function activateStartMode() {
@@ -468,6 +473,8 @@ async function handleSend(e) {
     const files = [...state.attachments];
     if (!text && !files.length) return false;
 
+    const savedText = text;
+    const savedFiles = [...files];
     const attachmentsPayload = files.map(f => ({
         name: f.name,
         size: f.size,
@@ -487,19 +494,67 @@ async function handleSend(e) {
             state.currentChatId = chat.chat_id;
             chatTitle.textContent = chat.title;
             upsertChat(chat);
-            activateChatMode();
-            renderHistory();
             
-            pushMessage(state.currentChatId, {
-                id: 'welcome_' + Date.now(),
-                sender: 'ai',
-                text: 'Привет! Я ваш помощник для научных исследований.\n\n**Вы хотите задать вопрос или сгенерировать гипотезу?**\n\nПожалуйста, ответьте:\n- "вопрос" - для получения ответов на вопросы\n- "гипотеза" - для генерации научных гипотез',
-                ts: Date.now()
-            });
+            // ВАЖНО: Активируем режим чата ПЕРЕД добавлением сообщений
+            // Это должно переключить интерфейс в режим чата
+            activateChatMode();
+            
+            // Загружаем сообщения с сервера, если они есть
+            try {
+                const serverMessages = await api.loadChatMessages(state.currentChatId);
+                if (serverMessages && serverMessages.length > 0) {
+                    state.messages.set(state.currentChatId, serverMessages);
+                } else {
+                    // Добавляем приветственное сообщение только если чат пустой
+                    pushMessage(state.currentChatId, {
+                        id: 'welcome_' + Date.now(),
+                        sender: 'ai',
+                        text: 'Привет! Я ваш помощник для научных исследований.\n\n**Вы хотите задать вопрос или сгенерировать гипотезу?**\n\nПожалуйста, ответьте:\n- "вопрос" - для получения ответов на вопросы\n- "гипотеза" - для генерации научных гипотез',
+                        ts: Date.now()
+                    });
+                }
+            } catch (loadError) {
+                console.warn('Не удалось загрузить сообщения чата:', loadError);
+                // Добавляем приветственное сообщение при ошибке загрузки
+                pushMessage(state.currentChatId, {
+                    id: 'welcome_' + Date.now(),
+                    sender: 'ai',
+                    text: 'Привет! Я ваш помощник для научных исследований.\n\n**Вы хотите задать вопрос или сгенерировать гипотезу?**\n\nПожалуйста, ответьте:\n- "вопрос" - для получения ответов на вопросы\n- "гипотеза" - для генерации научных гипотез',
+                    ts: Date.now()
+                });
+            }
+            
+            // Обновляем интерфейс
+            renderHistory();
             renderMessages(state.currentChatId);
             
         } catch (error) {
             console.error('Ошибка создания чата:', error);
+            // Восстанавливаем текст при ошибке
+            if (textarea) textarea.value = savedText;
+            state.attachments = savedFiles;
+            renderFileChips();
+            autoResizeTextarea();
+            
+            // Показываем понятное сообщение об ошибке в интерфейсе
+            const errorMessage = error.message && error.message.includes('Failed to fetch') 
+                ? '⚠️ Не удалось подключиться к серверу. Убедитесь, что backend запущен на http://localhost:5000\n\nДля запуска backend:\n1. Откройте терминал\n2. Перейдите в папку backend: cd backend\n3. Запустите: python app.py'
+                : `Ошибка создания чата: ${error.message || 'Неизвестная ошибка'}`;
+            
+            // Показываем ошибку в интерфейсе, если есть контейнер для сообщений
+            if (chatHistoryContainer) {
+                chatHistoryContainer.innerHTML = `
+                    <div class="message ai-message" style="padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; margin: 20px; border-radius: 8px;">
+                        <div class="message-text" style="white-space: pre-line; color: #856404;">
+                            ${errorMessage}
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Fallback на alert, если контейнер недоступен
+                alert(errorMessage);
+            }
+            
             state.ui.sending = false;
             return false;
         }
@@ -507,20 +562,22 @@ async function handleSend(e) {
 
     const chatId = state.currentChatId;
     
+    // Добавляем сообщение пользователя
     pushMessage(chatId, {
         id: 'temp_' + Date.now(),
         sender: 'user',
-        text,
+        text: savedText,
         ts: Date.now(),
         attachments: attachmentsPayload
     });
     renderMessages(chatId);
 
+    // Показываем индикатор печати
     state.ui.typing = true;
     renderMessages(chatId);
 
     try {
-        const resp = await api.sendMessage({ chatId, text, files });
+        const resp = await api.sendMessage({ chatId, text: savedText, files: savedFiles });
         state.ui.typing = false;
         
         if (resp.mode) {
@@ -535,6 +592,7 @@ async function handleSend(e) {
             }
         }
         
+        // Добавляем ответ бота
         pushMessage(chatId, {
             id: resp.messageId || crypto.randomUUID(),
             sender: 'ai',
@@ -542,6 +600,7 @@ async function handleSend(e) {
             ts: Date.now()
         });
         
+        // Синхронизируем с сервером
         try {
             const serverMessages = await api.loadChatMessages(chatId);
             if (serverMessages && serverMessages.length > 0) {
@@ -571,16 +630,36 @@ async function handleSend(e) {
     } catch (err) {
         console.error('Ошибка отправки', err);
         state.ui.typing = false;
+        
+        // Восстанавливаем текст при ошибке
+        if (textarea) textarea.value = savedText;
+        state.attachments = savedFiles;
+        renderFileChips();
+        autoResizeTextarea();
+        
+        // Удаляем временное сообщение пользователя из истории
+        const messages = state.messages.get(chatId) || [];
+        const filteredMessages = messages.filter(msg => !msg.id.startsWith('temp_'));
+        state.messages.set(chatId, filteredMessages);
+        
+        // Формируем понятное сообщение об ошибке
+        let errorText = 'Ошибка отправки. Попробуйте ещё раз.';
+        if (err.message && err.message.includes('Failed to fetch')) {
+            errorText = 'Не удалось подключиться к серверу. Убедитесь, что backend запущен на http://localhost:5000';
+        } else if (err.message) {
+            errorText = `Ошибка: ${err.message}`;
+        }
+        
         pushMessage(chatId, {
             id: 'error_' + Date.now(),
             sender: 'ai',
-            text: 'Ошибка отправки. Попробуйте ещё раз.',
+            text: errorText,
             ts: Date.now()
         });
         renderMessages(chatId);
     } finally {
         state.ui.sending = false;
-        textarea.focus();
+        if (textarea) textarea.focus();
     }
     
     return false;
@@ -888,6 +967,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     initUser();
     initStarRating();
     
+    // Проверяем доступность сервера при загрузке
+    checkServerAvailability();
+    
     try {
         const serverReviews = await api.loadReviews();
         state.reviews = serverReviews;
@@ -898,8 +980,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadReviewsFromStorage();
         renderReviews();
     }
+    
+    // Загружаем состояние после инициализации DOM
+    await loadState();
+    renderHistory();
+    activateStartMode();
 });
 
-loadState();
-renderHistory();
-activateStartMode();
+// Функция проверки доступности сервера
+async function checkServerAvailability() {
+    try {
+        const response = await fetch(`${API_CONFIG.BASE_URL.replace('/api', '')}/health`, {
+            method: 'GET'
+        });
+        if (response.ok) {
+            console.log('✅ Backend сервер доступен');
+            return true;
+        }
+    } catch (error) {
+        console.warn('⚠️ Backend сервер недоступен:', error.message);
+        // Показываем предупреждение в интерфейсе, если мы на стартовой странице
+        if (chatHistoryContainer && !body.classList.contains('chat-active')) {
+            chatHistoryContainer.innerHTML = `
+                <div class="message ai-message" style="padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; margin: 20px; border-radius: 8px;">
+                    <div class="message-text" style="white-space: pre-line; color: #856404;">
+                        ⚠️ <strong>Backend сервер недоступен</strong><br><br>
+                        Для запуска проекта:<br>
+                        1. Откройте терминал<br>
+                        2. Перейдите в папку backend: <code>cd backend</code><br>
+                        3. Запустите сервер: <code>python app.py</code><br>
+                        4. Обновите эту страницу (F5)<br><br>
+                        Сервер должен быть доступен на: <code>http://localhost:5000</code>
+                    </div>
+                </div>
+            `;
+        }
+        return false;
+    }
+}
